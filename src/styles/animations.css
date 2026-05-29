@@ -1,0 +1,180 @@
+/* Micro-animaciones UX */
+
+@keyframes btn-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes cart-bounce {
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.35); }
+  60% { transform: scale(0.9); }
+}
+
+@keyframes slide-up-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes status-pop {
+  0% { transform: scale(0.85); opacity: 0.5; }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes confetti-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+@keyframes birthday-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 102, 0, 0.35); }
+  50% { box-shadow: 0 0 20px 4px rgba(255, 102, 0, 0.25); }
+}
+
+.btn:not(:disabled):active {
+  animation: btn-press 0.18s ease;
+}
+
+.btn-animated:not(:disabled):hover {
+  transform: translateY(-1px);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cart-badge-pop {
+  animation: cart-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.page-enter {
+  animation: slide-up-in 0.35s ease both;
+}
+
+.tracker-step.current .step-icon {
+  animation: status-pop 0.5s ease;
+}
+
+.tracker-step.current {
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.product-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:active {
+  transform: scale(0.98);
+}
+
+.cart-add-flash {
+  animation: cart-bounce 0.5s ease;
+}
+
+.birthday-banner {
+  animation: slide-up-in 0.4s ease, birthday-glow 2s ease infinite;
+}
+
+.birthday-banner .birthday-icon {
+  display: inline-block;
+  animation: confetti-shake 1.2s ease infinite;
+}
+
+@keyframes ready-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 4, 0.2); }
+  50% { box-shadow: 0 0 16px 4px rgba(232, 93, 4, 0.15); }
+}
+
+.ready-pop {
+  animation: status-pop 0.5s ease;
+}
+
+.bottom-nav.cart-add-flash {
+  animation: cart-bounce 0.5s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Fly-to-cart particle */
+@keyframes fly-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.fly-to-cart-particle {
+  position: fixed;
+  z-index: 9999;
+  font-size: 1.75rem;
+  pointer-events: none;
+  transition: transform 0.55s cubic-bezier(0.25, 0.8, 0.35, 1), opacity 0.55s ease;
+  will-change: transform, opacity;
+}
+
+@keyframes tap-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.tap-pulse {
+  animation: tap-pulse 0.32s ease;
+}
+
+@keyframes toast-flash-in {
+  0% { opacity: 0; transform: translateY(16px) scale(0.92); }
+  60% { transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes check-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.toast--success {
+  animation: toast-flash-in 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(22, 163, 74, 0.35);
+}
+
+.toast-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: 800;
+  animation: check-pop 0.4s ease 0.1s both;
+}
+
+@keyframes onboarding-bubble-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes onboarding-action-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.product-card:hover:not(:active) {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.btn:not(:disabled):hover {
+  box-shadow: 0 4px 14px rgba(232, 93, 4, 0.25);
+}

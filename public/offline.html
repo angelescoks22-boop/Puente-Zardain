@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff6600" />
+    <title>Sin conexión · Puente Zardain</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        font-family: system-ui, sans-serif;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #0a0a0a;
+        color: #fff;
+        padding: 24px;
+        text-align: center;
+      }
+      .icon { font-size: 4rem; margin-bottom: 16px; }
+      h1 { color: #ff6600; margin-bottom: 8px; }
+      p { color: #aaa; line-height: 1.5; max-width: 320px; }
+      button {
+        margin-top: 24px;
+        background: #ff6600;
+        color: #fff;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="icon">🌉</div>
+      <h1>Sin conexión</h1>
+      <p>No hay internet. Revisa tu red e inténtalo de nuevo.</p>
+      <button onclick="location.reload()">Reintentar</button>
+    </div>
+  </body>
+</html>
