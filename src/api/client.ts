@@ -82,6 +82,10 @@ export function setPendingEmail(email: string | null): void {
 
 const AUTH_PUBLIC_PATHS = /^\/auth\/(login|register|send-code|verify-code|verify-otp|resend-otp)(\/|$)/;
 
+function isAuthPublicRequest(endpoint: string): boolean {
+  return AUTH_PUBLIC_PATHS.test(endpoint);
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -108,7 +112,7 @@ export async function apiFetch<T>(
     } else if (response.status === 404) {
       error = { message: 'No se pudo conectar con el servidor. Inténtalo en unos segundos.' };
     }
-    if (response.status === 401 && onUnauthorized && !AUTH_PUBLIC_PATHS.test(endpoint)) {
+    if (response.status === 401 && onUnauthorized && !isAuthPublicRequest(endpoint)) {
       onUnauthorized();
     }
     throw new ApiError(error.message ?? 'Error desconocido', response.status, error.code);

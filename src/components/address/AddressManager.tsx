@@ -119,6 +119,7 @@ export function AddressManager({ addresses, onUpdated }: Props) {
             details={deliveryDetails}
             onDetailsChange={setDeliveryDetails}
             disabled={loading}
+            showOptionalDetails
           />
           <label className="address-label">
             Etiqueta

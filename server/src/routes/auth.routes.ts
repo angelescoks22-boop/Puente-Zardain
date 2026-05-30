@@ -220,7 +220,7 @@ async function completeEmailVerification(
 
 router.post('/verify-code', validateBody(verifyCodeSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? ''));
-  const code = String(req.body.code ?? '').trim();
+  const code = String(req.body.code ?? '').replace(/\D/g, '').slice(0, 6);
   const rememberMe = req.body.rememberMe !== false;
   await completeEmailVerification(email, code, rememberMe !== false, res);
 });
@@ -307,7 +307,8 @@ router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
 });
 
 router.post('/login', validateBody(loginSchema), async (req, res) => {
-  const { identifier, password, rememberMe = false } = req.body;
+  const { password, rememberMe = false } = req.body;
+  const identifier = String(req.body.identifier ?? '').trim().toLowerCase();
   const user = await usersRepo.findOneByIdentifier(identifier);
 
   if (!user) return res.status(401).json({ message: 'Credenciales incorrectas' });

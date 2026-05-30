@@ -353,17 +353,12 @@ export function CheckoutPage() {
         <Card className="delivery-card">
 
           <DeliveryAddressForm
-
             validatedAddress={validatedAddress}
-
             onValidatedAddressChange={setValidatedAddress}
-
             details={deliveryDetails}
-
             onDetailsChange={setDeliveryDetails}
-
             disabled={loading}
-
+            showOptionalDetails
           />
 
           {user.addresses && user.addresses.length > 1 && (

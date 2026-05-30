@@ -8,6 +8,8 @@ type Props = {
   details: DeliveryDetailsFields;
   onDetailsChange: (details: DeliveryDetailsFields) => void;
   disabled?: boolean;
+  /** En registro: detalles (portal/piso/puerta) ocultos por defecto — no son obligatorios */
+  showOptionalDetails?: boolean;
 };
 
 export function DeliveryAddressForm({
@@ -16,6 +18,7 @@ export function DeliveryAddressForm({
   details,
   onDetailsChange,
   disabled,
+  showOptionalDetails = false,
 }: Props) {
   return (
     <div className="delivery-address-form">
@@ -26,7 +29,13 @@ export function DeliveryAddressForm({
         required
         disabled={disabled}
       />
-      <DeliveryDetailsField value={details} onChange={onDetailsChange} disabled={disabled} />
+      {showOptionalDetails ? (
+        <DeliveryDetailsField value={details} onChange={onDetailsChange} disabled={disabled} />
+      ) : (
+        <p className="address-hint subtle">
+          Portal, piso y puerta son opcionales — puedes añadirlos después en tu perfil.
+        </p>
+      )}
     </div>
   );
 }

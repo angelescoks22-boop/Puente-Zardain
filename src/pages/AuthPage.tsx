@@ -7,10 +7,6 @@ import { Card } from '../components/ui/Card';
 import { DeliveryAddressForm } from '../components/address/DeliveryAddressForm';
 import { OtpInput } from '../components/auth/OtpInput';
 import type { ValidatedAddress } from '../types';
-import {
-  EMPTY_DELIVERY_DETAILS,
-  sanitizeDeliveryDetailsFields,
-} from '../utils/deliveryAddress';
 import { useAlertStore } from '../store/alertStore';
 import { ApiError, setPendingEmail } from '../api/client';
 import { AUTH_ERROR_TITLE, getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
@@ -124,11 +120,10 @@ export function AuthPage() {
   const showAlert = useAlertStore((s) => s.alert);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [step, setStep] = useState<'form' | 'otp'>(() => (pendingEmail ? 'otp' : 'form'));
+  const [step, setStep] = useState<'form' | 'otp'>('form');
   const [email, setEmail] = useState(pendingEmail ?? '');
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [validatedAddress, setValidatedAddress] = useState<ValidatedAddress | null>(null);
-  const [deliveryDetails, setDeliveryDetails] = useState(EMPTY_DELIVERY_DETAILS);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -181,12 +176,12 @@ export function AuthPage() {
     clearError();
     try {
       if (hasPassword) {
-        const role = await login(trimmedEmail, form.password, rememberMe);
+        const role = await login(trimmedEmail.toLowerCase(), form.password.trim(), rememberMe);
         showToast(role === 'admin' ? 'Panel técnico' : '¡Bienvenido!');
         navigate(role === 'admin' ? '/admin' : '/');
         return;
       }
-      await sendCode(trimmedEmail);
+      await sendCode(trimmedEmail.toLowerCase());
       goToOtp(trimmedEmail);
       showToast('📧 Código enviado a tu correo');
     } catch (err) {
@@ -238,11 +233,14 @@ export function AuthPage() {
       const result = await register({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        email: trimmedEmail,
+        email: trimmedEmail.toLowerCase(),
         ...(form.password.trim() ? { password: form.password.trim() } : {}),
         address: {
-          ...validatedAddress,
-          ...sanitizeDeliveryDetailsFields(deliveryDetails),
+          fullAddress: validatedAddress.fullAddress,
+          city: validatedAddress.city,
+          lat: validatedAddress.lat,
+          lng: validatedAddress.lng,
+          ...(validatedAddress.placeId ? { placeId: validatedAddress.placeId } : {}),
         },
       });
       goToOtp(trimmedEmail);
@@ -304,30 +302,35 @@ export function AuthPage() {
 
       <Card>
         {mode === 'login' && (
-          <form onSubmit={handleLogin} className="auth-form">
+          <form onSubmit={handleLogin} className="auth-form" noValidate>
             <label>
               Email
               <input
                 className="input"
-                type="email"
-                required
-                autoFocus
-                autoComplete="email"
+                type="text"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username email"
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
             <label>
-              Contraseña <span className="hint">(opcional — sin ella te enviamos código)</span>
+              Contraseña
               <input
                 className="input"
                 type="password"
                 autoComplete="current-password"
+                placeholder="Déjala vacía para recibir un código"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </label>
+            <p className="hint auth-login-hint">
+              Con contraseña entras al momento. Sin contraseña te enviamos un código por email.
+            </p>
             <label className="remember-row">
               <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
               Recuérdame
@@ -340,13 +343,13 @@ export function AuthPage() {
         )}
 
         {mode === 'register' && (
-          <form onSubmit={handleRegister} className="auth-form">
+          <form onSubmit={handleRegister} className="auth-form" noValidate>
             <label>
               Nombre
               <input
                 className="input"
-                required
                 autoComplete="name"
+                placeholder="Tu nombre"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
@@ -356,9 +359,9 @@ export function AuthPage() {
               <input
                 className="input"
                 type="tel"
-                required
                 autoComplete="tel"
                 inputMode="tel"
+                placeholder="600000000"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
@@ -367,9 +370,12 @@ export function AuthPage() {
               Email
               <input
                 className="input"
-                type="email"
-                required
+                type="text"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
                 autoComplete="email"
+                placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -379,19 +385,19 @@ export function AuthPage() {
               <input
                 className="input"
                 type="password"
-                minLength={6}
                 autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 6 caracteres si la usas"
               />
             </label>
             <DeliveryAddressForm
               validatedAddress={validatedAddress}
               onValidatedAddressChange={setValidatedAddress}
-              details={deliveryDetails}
-              onDetailsChange={setDeliveryDetails}
+              details={{ portal: '', floor: '', door: '', details: '' }}
+              onDetailsChange={() => {}}
               disabled={loading}
+              showOptionalDetails={false}
             />
             <p className="hint">Verificaremos tu email con un código de 6 dígitos.</p>
             {displayError && <p className="form-error">{displayError}</p>}

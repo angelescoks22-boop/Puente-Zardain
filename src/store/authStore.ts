@@ -81,7 +81,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const email = get().pendingEmail ?? getPendingEmail();
     if (!email) throw new Error('Sin verificación pendiente. Vuelve atrás e introduce tu email.');
     set({ error: null });
-    const { user, role } = await authApi.verifyCode(email, code, rememberMe);
+    const normalizedCode = code.replace(/\D/g, '').slice(0, 6);
+    const { user, role } = await authApi.verifyCode(email, normalizedCode, rememberMe);
     setPendingEmail(null);
     set({ user, role: role as 'client' | 'admin', isAuthenticated: true, pendingEmail: null });
     return role as 'client' | 'admin';
@@ -99,7 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (identifier, password, rememberMe = false) => {
     set({ error: null });
-    const { user, role } = await authApi.login(identifier, password, rememberMe);
+    const { user, role } = await authApi.login(identifier.trim(), password.trim(), rememberMe);
     setPendingEmail(null);
     set({ user, role: role as 'client' | 'admin', isAuthenticated: true, pendingEmail: null });
     return role as 'client' | 'admin';
