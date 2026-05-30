@@ -10,6 +10,7 @@ let currentConversationId: string | null = null;
 type MessageHandler = (msg: ChatMessage) => void;
 type ConversationHandler = (conv: unknown) => void;
 type SettingsHandler = (payload: Record<string, unknown>) => void;
+type BusinessMessagesHandler = () => void;
 type NotificationHandler = (payload: {
   conversationId: string;
   orderId?: string;
@@ -21,6 +22,7 @@ const messageHandlers = new Set<MessageHandler>();
 const conversationHandlers = new Set<ConversationHandler>();
 const notificationHandlers = new Set<NotificationHandler>();
 const settingsHandlers = new Set<SettingsHandler>();
+const businessMessagesHandlers = new Set<BusinessMessagesHandler>();
 
 function setupSocket(socket: Socket) {
   socket.off('receiveMessage');
@@ -29,6 +31,7 @@ function setupSocket(socket: Socket) {
   socket.off('connect_error');
   socket.off('chat_notification');
   socket.off('settings_update');
+  socket.off('business_messages_update');
 
   socket.on('receiveMessage', (msg: ChatMessage) => {
     messageHandlers.forEach((h) => h(msg));
@@ -49,6 +52,10 @@ function setupSocket(socket: Socket) {
 
   socket.on('settings_update', (payload: Record<string, unknown>) => {
     settingsHandlers.forEach((h) => h(payload));
+  });
+
+  socket.on('business_messages_update', () => {
+    businessMessagesHandlers.forEach((h) => h());
   });
 
   socket.on('connect', () => {
@@ -106,6 +113,12 @@ export function onSettingsUpdate(handler: SettingsHandler) {
   settingsHandlers.add(handler);
   ensureAppSocket();
   return () => settingsHandlers.delete(handler);
+}
+
+export function onBusinessMessagesUpdate(handler: BusinessMessagesHandler) {
+  businessMessagesHandlers.add(handler);
+  ensureAppSocket();
+  return () => businessMessagesHandlers.delete(handler);
 }
 
 export function joinConversation(conversationId: string | null) {

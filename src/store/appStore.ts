@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FavoriteOrder, Notification } from '../types';
 import * as productsApi from '../api/products';
+import { ensureAppSocket, onBusinessMessagesUpdate } from '../api/chatSocket';
 import { generateId } from '../utils/format';
 
 type AppState = {
@@ -15,6 +16,7 @@ type AppState = {
   toggleFavorite: (userId: string, productId: string) => Promise<void>;
   saveFavoriteOrder: (userId: string, name: string, items: FavoriteOrder['items']) => Promise<void>;
   loadBusinessMessages: () => Promise<void>;
+  startBusinessMessagesSync: () => () => void;
   addNotification: (title: string, message: string) => void;
   markNotificationsRead: () => void;
   showToast: (message: string) => void;
@@ -59,8 +61,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadBusinessMessages: async () => {
-    const businessMessages = await productsApi.getBusinessMessages();
-    set({ businessMessages });
+    try {
+      const businessMessages = await productsApi.getBusinessMessages();
+      set({ businessMessages });
+    } catch {
+      set({ businessMessages: [] });
+    }
+  },
+
+  startBusinessMessagesSync: () => {
+    ensureAppSocket();
+    void get().loadBusinessMessages();
+
+    const interval = setInterval(() => {
+      void get().loadBusinessMessages();
+    }, 30_000);
+
+    const stopSocket = onBusinessMessagesUpdate(() => {
+      void get().loadBusinessMessages();
+    });
+
+    return () => {
+      clearInterval(interval);
+      stopSocket();
+    };
   },
 
   addNotification: (title, message) => {

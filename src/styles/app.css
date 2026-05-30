@@ -280,7 +280,7 @@ input, textarea, button { font: inherit; }
   margin-bottom: 12px;
 }
 .card-padded { padding: 16px; }
-.card-clickable { cursor: pointer; transition: transform 0.15s; }
+.card-clickable { cursor: pointer; transition: transform 0.15s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .card-clickable:active { transform: scale(0.98); }
 
 /* Badge */
@@ -420,29 +420,37 @@ input, textarea, button { font: inherit; }
   border-color: var(--primary);
 }
 
-/* Modal */
+/* Modal — portal en body; bottom sheet móvil */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: fadeIn 0.2s;
+  padding: 0;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .modal-content {
   background: var(--surface);
   width: 100%;
   max-width: 480px;
-  max-height: 90dvh;
+  max-height: min(90dvh, 90vh);
   border-radius: var(--radius) var(--radius) 0 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  animation: slideUp 0.3s ease;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateY(0);
+  animation: modalSlideUp 0.28s ease-out;
 }
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: none; }
+@keyframes modalSlideUp {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
 }
 .modal-header {
   display: flex;

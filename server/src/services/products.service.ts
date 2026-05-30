@@ -29,7 +29,7 @@ export function formatProduct(p: IProduct) {
     price: p.price,
     category: p.category,
     image: p.image,
-    ingredients: p.ingredients,
+    ingredients: p.ingredients ?? [],
     popular: p.popular,
     featured: p.featured,
     active: p.active,

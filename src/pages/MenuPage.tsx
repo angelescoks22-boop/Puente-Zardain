@@ -13,7 +13,6 @@ import { useAuthStore } from '../store/authStore';
 import { useAppStore } from '../store/appStore';
 import { useOrderStore } from '../store/orderStore';
 import { RecommendationStrip } from '../components/smart/BrowseRecommendations';
-import { BrowseRecommendations } from '../components/smart/BrowseRecommendations';
 import { sortProductsByHabits, analyzeUserHabits } from '../utils/userHabits';
 import { useSmartEta } from '../hooks/useSmartEta';
 
@@ -156,7 +155,6 @@ export function MenuPage() {
       </div>
 
       <ProductModal product={selectedProduct} open={!!selectedProduct} onClose={() => setSelectedProduct(null)} />
-      <BrowseRecommendations selectedProduct={selectedProduct} products={products} />
     </div>
   );
 }

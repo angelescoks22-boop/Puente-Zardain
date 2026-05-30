@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from './Button';
 
 type Props = {
@@ -9,14 +10,50 @@ type Props = {
 };
 
 export function Modal({ open, onClose, title, children }: Props) {
+  useEffect(() => {
+    if (!open) return;
+
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const prevOverflow = style.overflow;
+    const prevPosition = style.position;
+    const prevTop = style.top;
+    const prevWidth = style.width;
+
+    style.overflow = 'hidden';
+    style.position = 'fixed';
+    style.top = `-${scrollY}px`;
+    style.width = '100%';
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      style.overflow = prevOverflow;
+      style.position = prevPosition;
+      style.top = prevTop;
+      style.width = prevWidth;
+      window.scrollTo(0, scrollY);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
+  return createPortal(
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={title ? 'modal-title' : undefined}
+      onClick={onClose}
+    >
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         {title && (
           <div className="modal-header">
-            <h2>{title}</h2>
+            <h2 id="modal-title">{title}</h2>
             <button type="button" className="modal-close" onClick={onClose} aria-label="Cerrar">
               ✕
             </button>
@@ -24,7 +61,8 @@ export function Modal({ open, onClose, title, children }: Props) {
         )}
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

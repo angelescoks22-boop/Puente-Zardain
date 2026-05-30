@@ -11,7 +11,7 @@ import * as orderStatusLogsRepo from '../db/orderStatusLogs.js';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { assertValidStatusTransition } from '../utils/gamification.js';
 import { buildAdminDashboard, isOrderDelayed, orderElapsedMinutes } from '../services/adminDashboard.service.js';
-import { notifyAdminDashboard, notifyOrderUpdate } from '../services/adminNotify.js';
+import { notifyAdminDashboard, notifyOrderUpdate, notifyBusinessMessagesUpdate } from '../services/adminNotify.js';
 import { toggleOrdersOpen, setBusinessStatus } from '../services/settings.service.js';
 import { getEffectivePrepMinutes, runMaintenanceJobs } from '../services/adminJobs.service.js';
 import { getSystemHealth, getRecentSystemLogs } from '../services/systemMonitor.service.js';
@@ -611,21 +611,66 @@ router.get('/reports/daily/today', async (_req, res) => {
 
 router.get('/messages', async (_req, res) => {
   const messages = await businessMessagesRepo.find({}, true);
-  res.json(messages.map((m) => ({ ...m, id: m.id })));
+  res.json(messages.map((m) => ({
+    id: m.id,
+    text: m.text,
+    type: m.type,
+    active: m.active,
+    createdAt: m.createdAt?.toISOString(),
+  })));
 });
 
 router.post('/messages', async (req, res) => {
-  const msg = await businessMessagesRepo.create(req.body);
-  res.status(201).json({ ...msg, id: msg.id });
+  const text = String(req.body.text ?? '').trim();
+  if (!text) {
+    return res.status(400).json({ message: 'Escribe el texto del mensaje' });
+  }
+  const type = ['info', 'warning', 'promo'].includes(req.body.type) ? req.body.type : 'info';
+  const msg = await businessMessagesRepo.create({ text, type, active: req.body.active !== false });
+  notifyBusinessMessagesUpdate();
+  res.status(201).json({
+    id: msg.id,
+    text: msg.text,
+    type: msg.type,
+    active: msg.active,
+    createdAt: msg.createdAt?.toISOString(),
+  });
 });
 
 router.patch('/messages/:id', async (req, res) => {
-  await businessMessagesRepo.updateById(req.params.id, req.body);
-  res.json({ ok: true });
+  const id = paramStr(req.params.id);
+  const patch: { text?: string; type?: 'info' | 'warning' | 'promo'; active?: boolean } = {};
+  if (req.body.text !== undefined) {
+    const text = String(req.body.text).trim();
+    if (!text) return res.status(400).json({ message: 'El texto no puede estar vacío' });
+    patch.text = text;
+  }
+  if (req.body.type !== undefined) {
+    if (!['info', 'warning', 'promo'].includes(req.body.type)) {
+      return res.status(400).json({ message: 'Tipo inválido' });
+    }
+    patch.type = req.body.type;
+  }
+  if (req.body.active !== undefined) patch.active = Boolean(req.body.active);
+
+  const updated = await businessMessagesRepo.updateById(id, patch);
+  if (!updated) return res.status(404).json({ message: 'Mensaje no encontrado' });
+  notifyBusinessMessagesUpdate();
+  res.json({
+    id: updated.id,
+    text: updated.text,
+    type: updated.type,
+    active: updated.active,
+    createdAt: updated.createdAt?.toISOString(),
+  });
 });
 
 router.delete('/messages/:id', async (req, res) => {
-  await businessMessagesRepo.deleteById(req.params.id);
+  const id = paramStr(req.params.id);
+  const existing = await businessMessagesRepo.findById(id);
+  if (!existing) return res.status(404).json({ message: 'Mensaje no encontrado' });
+  await businessMessagesRepo.deleteById(id);
+  notifyBusinessMessagesUpdate();
   res.json({ ok: true });
 });
 

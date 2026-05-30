@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Product } from '../../types';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -21,19 +21,29 @@ export function ProductModal({ product, open, onClose }: Props) {
   const addItem = useCartStore((s) => s.addItem);
   const showToast = useAppStore((s) => s.showToast);
 
-  if (!product) return null;
+  const ingredients = product?.ingredients ?? [];
+
+  useEffect(() => {
+    if (open && product) {
+      setQuantity(1);
+      setRemoved([]);
+      setError('');
+    }
+  }, [open, product?.id, product]);
 
   const toggleIngredient = (id: string) => {
+    if (!product) return;
     setError('');
     if (removed.includes(id)) {
       setRemoved(removed.filter((r) => r !== id));
-    } else if (canRemoveIngredient(id, product.ingredients, removed)) {
+    } else if (canRemoveIngredient(id, ingredients, removed)) {
       setRemoved([...removed, id]);
     }
   };
 
   const handleAdd = () => {
-    const validation = validateCustomization(product.ingredients, removed);
+    if (!product) return;
+    const validation = validateCustomization(ingredients, removed);
     if (!validation.valid) {
       setError(validation.error ?? 'Personalización no válida');
       return;
@@ -45,15 +55,16 @@ export function ProductModal({ product, open, onClose }: Props) {
         emoji: product.image,
         sourceElement: document.querySelector('.product-modal-hero'),
       });
-      setQuantity(1);
-      setRemoved([]);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     }
   };
 
-  const customLabel = getCustomizationLabel(removed, product.ingredients);
+  if (!open || !product) return null;
+
+  const customLabel = getCustomizationLabel(removed, ingredients);
+  const optionalIngredients = ingredients.filter((i) => !i.required);
 
   return (
     <Modal open={open} onClose={onClose} title={product.name}>
@@ -62,12 +73,12 @@ export function ProductModal({ product, open, onClose }: Props) {
         <p>{product.description}</p>
         <p className="product-modal-price">{formatPrice(product.price)}</p>
 
-        {product.ingredients.some((i) => !i.required) && (
+        {optionalIngredients.length > 0 && (
           <div className="ingredients-section">
             <h4>Personalizar</h4>
             <p className="hint">Puedes quitar ingredientes opcionales</p>
             <div className="ingredients-list">
-              {product.ingredients.map((ing) => (
+              {ingredients.map((ing) => (
                 <button
                   key={ing.id}
                   type="button"
@@ -86,9 +97,9 @@ export function ProductModal({ product, open, onClose }: Props) {
         <div className="quantity-row">
           <span>Cantidad</span>
           <div className="quantity-controls">
-            <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button>
+            <button type="button" aria-label="Menos" onClick={() => setQuantity(Math.max(1, quantity - 1))}>−</button>
             <span>{quantity}</span>
-            <button type="button" onClick={() => setQuantity(quantity + 1)}>+</button>
+            <button type="button" aria-label="Más" onClick={() => setQuantity(quantity + 1)}>+</button>
           </div>
         </div>
 

@@ -21,8 +21,6 @@ export function HomePage() {
   const fetchOrders = useOrderStore((s) => s.fetchOrders);
   const fetchActiveOrder = useOrderStore((s) => s.fetchActiveOrder);
   const refreshActiveOrder = useOrderStore((s) => s.refreshActiveOrder);
-  const businessMessages = useAppStore((s) => s.businessMessages);
-  const loadBusinessMessages = useAppStore((s) => s.loadBusinessMessages);
   const repeatOrder = useCartStore((s) => s.repeatOrder);
   const showToast = useAppStore((s) => s.showToast);
 
@@ -35,12 +33,11 @@ export function HomePage() {
     : undefined;
 
   useEffect(() => {
-    loadBusinessMessages();
     if (user) {
       fetchOrders(user.id);
       fetchActiveOrder(user.id);
     }
-  }, [user, loadBusinessMessages, fetchOrders, fetchActiveOrder]);
+  }, [user, fetchOrders, fetchActiveOrder]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -80,12 +77,6 @@ export function HomePage() {
       )}
 
       <HomeActionHub actions={actions} />
-
-      {businessMessages.map((msg) => (
-        <div key={msg.id} className={`business-msg msg-${msg.type}`}>
-          {msg.text}
-        </div>
-      ))}
 
       {activeOrder && (
         <Card className={`active-order-card ${activeOrder.status === 'ready' ? 'order-ready-glow' : ''}`}>

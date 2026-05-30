@@ -14,24 +14,43 @@ export async function find(filter: { active?: boolean } = {}, sortDesc = true): 
   return rows.map(mapBusinessMessageRow);
 }
 
+export async function findById(id: string): Promise<IBusinessMessage | null> {
+  const { rows } = await query('SELECT * FROM business_messages WHERE id = $1', [id]);
+  return rows[0] ? mapBusinessMessageRow(rows[0]) : null;
+}
+
+/** Solo un aviso activo a la vez en la web del cliente */
+export async function deactivateAllExcept(id: string): Promise<void> {
+  await query('UPDATE business_messages SET active = false WHERE id <> $1 AND active = true', [id]);
+}
+
 export async function create(data: Partial<IBusinessMessage>): Promise<IBusinessMessage> {
-  const { rows } = await query(
+  const active = data.active ?? true;
+  const msg = await query(
     `INSERT INTO business_messages (text, type, active)
      VALUES ($1, $2, $3)
      RETURNING *`,
-    [data.text, data.type ?? 'info', data.active ?? true],
+    [String(data.text ?? '').trim(), data.type ?? 'info', active],
   );
-  return mapBusinessMessageRow(rows[0]);
+  const created = mapBusinessMessageRow(msg.rows[0]);
+  if (active) {
+    await deactivateAllExcept(created.id);
+  }
+  return created;
 }
 
-export async function updateById(id: string, data: Partial<IBusinessMessage>): Promise<void> {
-  const existing = (await find()).find((m) => m.id === id);
-  if (!existing) return;
+export async function updateById(id: string, data: Partial<IBusinessMessage>): Promise<IBusinessMessage | null> {
+  const existing = await findById(id);
+  if (!existing) return null;
   const merged = { ...existing, ...data };
-  await query(
-    'UPDATE business_messages SET text = $2, type = $3, active = $4 WHERE id = $1',
-    [id, merged.text, merged.type, merged.active],
+  if (merged.active) {
+    await deactivateAllExcept(id);
+  }
+  const { rows } = await query(
+    'UPDATE business_messages SET text = $2, type = $3, active = $4 WHERE id = $1 RETURNING *',
+    [id, merged.text.trim(), merged.type, merged.active],
   );
+  return rows[0] ? mapBusinessMessageRow(rows[0]) : null;
 }
 
 export async function deleteById(id: string): Promise<void> {

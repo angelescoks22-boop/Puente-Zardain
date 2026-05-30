@@ -14,6 +14,10 @@ export function notifySettingsUpdate(payload: Record<string, unknown>) {
   io?.emit('settings_update', payload);
 }
 
+export function notifyBusinessMessagesUpdate() {
+  io?.emit('business_messages_update', { at: new Date().toISOString() });
+}
+
 export function notifyOrderUpdate(orderId: string, status: string, userId?: string) {
   io?.to('admin:dashboard').emit('admin_order_update', { orderId, status });
   if (userId) {

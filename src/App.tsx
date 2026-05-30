@@ -49,7 +49,7 @@ function AppInit() {
   const init = useAuthStore((s) => s.init);
   const user = useAuthStore((s) => s.user);
   const loadFavorites = useAppStore((s) => s.loadFavorites);
-  const loadBusinessMessages = useAppStore((s) => s.loadBusinessMessages);
+  const startBusinessMessagesSync = useAppStore((s) => s.startBusinessMessagesSync);
   const startSettingsSync = useSettingsStore((s) => s.startSync);
   const initTheme = useThemeStore((s) => s.initTheme);
 
@@ -68,10 +68,13 @@ function AppInit() {
       .catch(() => {})
       .finally(hideSplash);
     ensureAppSocket();
-    loadBusinessMessages();
+    const stopMessagesSync = startBusinessMessagesSync();
     const stopSettingsSync = startSettingsSync();
-    return () => stopSettingsSync();
-  }, [init, loadBusinessMessages, startSettingsSync, initTheme]);
+    return () => {
+      stopMessagesSync();
+      stopSettingsSync();
+    };
+  }, [init, startBusinessMessagesSync, startSettingsSync, initTheme]);
 
   useEffect(() => {
     if (user?.role === 'client') loadFavorites(user.id);
