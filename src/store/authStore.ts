@@ -26,6 +26,7 @@ type AuthState = {
   updateProfile: (updates: Partial<User>) => Promise<void>;
   setUser: (user: User) => void;
   clearError: () => void;
+  clearPendingVerification: () => void;
   handleSessionExpired: () => void;
 };
 
@@ -119,6 +120,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user) => set({ user, role: user.role ?? 'client', isAuthenticated: true }),
   clearError: () => set({ error: null }),
+  clearPendingVerification: () => {
+    setPendingEmail(null);
+    set({ pendingEmail: null, error: null });
+  },
   handleSessionExpired: () => {
     setPendingEmail(null);
     set({ user: null, role: null, isAuthenticated: false, pendingEmail: null, error: 'Sesión expirada' });

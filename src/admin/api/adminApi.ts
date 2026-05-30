@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 
 import { adminFetch, getToken, API_BASE } from '../../api/client';
+import { onAdminDashboardUpdate } from '../hooks/useAdminSocket';
 
 
 
@@ -521,11 +522,13 @@ export const adminApi = {
 
 
 
-export function useAdminPoll<T>(fetcher: () => Promise<T>, intervalMs = 5000) {
+export function useAdminPoll<T>(fetcher: () => Promise<T>, intervalMs = 5000, socketRefresh = true) {
 
   const [data, setData] = useState<T | undefined>(undefined);
 
   const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState<string | null>(null);
 
 
 
@@ -536,6 +539,12 @@ export function useAdminPoll<T>(fetcher: () => Promise<T>, intervalMs = 5000) {
       const result = await fetcher();
 
       setData(result);
+
+      setError(null);
+
+    } catch (e) {
+
+      setError(e instanceof Error ? e.message : 'Error al cargar datos');
 
     } finally {
 
@@ -559,7 +568,17 @@ export function useAdminPoll<T>(fetcher: () => Promise<T>, intervalMs = 5000) {
 
 
 
-  return { data, loading, refresh };
+  useEffect(() => {
+
+    if (!socketRefresh) return;
+
+    return onAdminDashboardUpdate(refresh);
+
+  }, [refresh, socketRefresh]);
+
+
+
+  return { data, loading, error, refresh };
 
 }
 

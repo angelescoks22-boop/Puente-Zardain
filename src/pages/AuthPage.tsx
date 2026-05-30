@@ -12,6 +12,7 @@ import {
   sanitizeDeliveryDetailsFields,
 } from '../utils/deliveryAddress';
 import { useAlertStore } from '../store/alertStore';
+import { ApiError, setPendingEmail } from '../api/client';
 import { AUTH_ERROR_TITLE, getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
 
 const RESEND_COOLDOWN = 60;
@@ -42,6 +43,7 @@ function OtpStep({
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (otp.length !== 6) return;
     setLoading(true);
     setLocalError('');
     clearError();
@@ -61,12 +63,15 @@ function OtpStep({
   const handleResend = async () => {
     if (cooldown > 0) return;
     setLocalError('');
+    clearError();
     try {
       await resendCode();
       setCooldown(RESEND_COOLDOWN);
       showToast('📧 Nuevo código enviado');
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'No se pudo reenviar');
+      const msg = getAuthErrorMessage(err);
+      setLocalError(msg);
+      void showAlert(msg, AUTH_ERROR_TITLE);
     }
   };
 
@@ -96,7 +101,7 @@ function OtpStep({
             {cooldown > 0 ? `Reenviar en ${cooldown}s` : 'Reenviar código'}
           </button>
           <button type="button" className="link-btn" onClick={onBack}>
-            Volver
+            Cambiar email
           </button>
         </div>
       </Card>
@@ -106,13 +111,21 @@ function OtpStep({
 
 export function AuthPage() {
   const navigate = useNavigate();
-  const { sendCode, register, login, pendingEmail, error, clearError } = useAuthStore();
+  const {
+    sendCode,
+    register,
+    login,
+    pendingEmail,
+    error,
+    clearError,
+    clearPendingVerification,
+  } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
   const showAlert = useAlertStore((s) => s.alert);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<'form' | 'otp'>(() => (pendingEmail ? 'otp' : 'form'));
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(pendingEmail ?? '');
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [validatedAddress, setValidatedAddress] = useState<ValidatedAddress | null>(null);
   const [deliveryDetails, setDeliveryDetails] = useState(EMPTY_DELIVERY_DETAILS);
@@ -120,30 +133,34 @@ export function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const activeEmail = pendingEmail ?? email;
+  const activeEmail = (pendingEmail ?? email).trim();
   const hasPassword = form.password.trim().length > 0;
 
   useEffect(() => {
     if (pendingEmail && !email) setEmail(pendingEmail);
   }, [pendingEmail, email]);
 
-  useEffect(() => {
-    if (pendingEmail) setStep('otp');
-  }, [pendingEmail]);
-
   const goHome = (role: 'client' | 'admin') => {
     navigate(role === 'admin' ? '/admin' : '/');
+  };
+
+  const goToOtp = (targetEmail: string) => {
+    setEmail(targetEmail);
+    setStep('otp');
+  };
+
+  const handleBackFromOtp = () => {
+    clearPendingVerification();
+    setStep('form');
+    setLocalError('');
+    clearError();
   };
 
   if (step === 'otp' && activeEmail) {
     return (
       <OtpStep
         email={activeEmail}
-        onBack={() => {
-          setStep('form');
-          clearError();
-          setLocalError('');
-        }}
+        onBack={handleBackFromOtp}
         onSuccess={goHome}
       />
     );
@@ -170,11 +187,18 @@ export function AuthPage() {
         return;
       }
       await sendCode(trimmedEmail);
-      setStep('otp');
+      goToOtp(trimmedEmail);
       showToast('📧 Código enviado a tu correo');
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
+        setPendingEmail(trimmedEmail);
+        useAuthStore.setState({ pendingEmail: trimmedEmail });
+        goToOtp(trimmedEmail);
+        showToast('📧 Te hemos enviado un código de verificación');
+        return;
+      }
       const msg = getAuthErrorMessage(err);
-      setLocalError('');
+      setLocalError(msg);
       void showAlert(msg, AUTH_ERROR_TITLE);
     } finally {
       setLoading(false);
@@ -191,6 +215,18 @@ export function AuthPage() {
       );
       return;
     }
+    if (!form.name.trim() || form.name.trim().length < 2) {
+      void showAlert('Escribe tu nombre (mínimo 2 letras).', AUTH_ERROR_TITLE);
+      return;
+    }
+    if (!form.phone.trim() || form.phone.trim().length < 9) {
+      void showAlert('Escribe un teléfono válido (mínimo 9 dígitos).', AUTH_ERROR_TITLE);
+      return;
+    }
+    if (form.password.trim() && form.password.trim().length < 6) {
+      void showAlert('La contraseña debe tener al menos 6 caracteres.', AUTH_ERROR_TITLE);
+      return;
+    }
     if (!validatedAddress) {
       void showAlert('Selecciona una dirección válida en Arroyomolinos', 'Dirección');
       return;
@@ -200,16 +236,16 @@ export function AuthPage() {
     clearError();
     try {
       const result = await register({
-        name: form.name,
-        phone: form.phone,
+        name: form.name.trim(),
+        phone: form.phone.trim(),
         email: trimmedEmail,
-        ...(form.password.trim() ? { password: form.password } : {}),
+        ...(form.password.trim() ? { password: form.password.trim() } : {}),
         address: {
           ...validatedAddress,
           ...sanitizeDeliveryDetailsFields(deliveryDetails),
         },
       });
-      setStep('otp');
+      goToOtp(trimmedEmail);
       showToast(
         result.existingAccount
           ? 'Ya tienes cuenta — te enviamos un código para entrar'
@@ -217,7 +253,7 @@ export function AuthPage() {
       );
     } catch (err) {
       const msg = getAuthErrorMessage(err);
-      setLocalError('');
+      setLocalError(msg);
       void showAlert(msg, AUTH_ERROR_TITLE);
     } finally {
       setLoading(false);
@@ -233,6 +269,20 @@ export function AuthPage() {
         <p className="hint auth-subtitle">
           Crea tu cuenta y verifica tu email. Si ya te registraste, usa Entrar.
         </p>
+      )}
+      {mode === 'login' && (
+        <p className="hint auth-subtitle">
+          Con contraseña entras al momento. Sin contraseña te enviamos un código por email.
+        </p>
+      )}
+
+      {pendingEmail && step === 'form' && (
+        <Card className="auth-pending-banner">
+          <p>Tienes un código pendiente para <strong>{pendingEmail}</strong></p>
+          <Button size="sm" onClick={() => goToOtp(pendingEmail)}>
+            Continuar verificación
+          </Button>
+        </Card>
       )}
 
       <div className="auth-tabs">
@@ -262,13 +312,14 @@ export function AuthPage() {
                 type="email"
                 required
                 autoFocus
+                autoComplete="email"
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
             <label>
-              Contraseña
+              Contraseña <span className="hint">(opcional — sin ella te enviamos código)</span>
               <input
                 className="input"
                 type="password"
@@ -283,7 +334,7 @@ export function AuthPage() {
             </label>
             {displayError && <p className="form-error">{displayError}</p>}
             <Button fullWidth size="lg" disabled={loading}>
-              {loading ? 'Un momento…' : hasPassword ? 'Entrar' : 'Enviar código'}
+              {loading ? 'Un momento…' : hasPassword ? 'Entrar' : 'Enviar código por email'}
             </Button>
           </form>
         )}
@@ -292,15 +343,36 @@ export function AuthPage() {
           <form onSubmit={handleRegister} className="auth-form">
             <label>
               Nombre
-              <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <input
+                className="input"
+                required
+                autoComplete="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </label>
             <label>
               Teléfono (reparto)
-              <input className="input" type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <input
+                className="input"
+                type="tel"
+                required
+                autoComplete="tel"
+                inputMode="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </label>
             <label>
               Email
-              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input
+                className="input"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </label>
             <label>
               Contraseña (opcional)
@@ -308,6 +380,7 @@ export function AuthPage() {
                 className="input"
                 type="password"
                 minLength={6}
+                autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="Mínimo 6 caracteres"

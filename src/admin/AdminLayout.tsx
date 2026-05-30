@@ -5,6 +5,8 @@ import { onSettingsUpdate } from '../api/chatSocket';
 import { useEffect, useState } from 'react';
 import { adminApi, BUSINESS_STATUS_LABELS, type BusinessStatus } from './api/adminApi';
 import { useAdminSocketInit } from './hooks/useAdminSocket';
+import { AdminNewOrderAlert } from './components/AdminNewOrderAlert';
+import { unlockAdminAudio, isAdminAudioUnlocked } from './utils/newOrderAlertSound';
 import './styles/admin.css';
 
 const NAV = [
@@ -72,7 +74,13 @@ export function AdminLayout() {
   if (isLoading || role !== 'admin') return <div className="admin-main">Cargando...</div>;
 
   return (
-    <div className="admin-shell">
+    <div
+      className="admin-shell"
+      onClick={() => {
+        if (!isAdminAudioUnlocked()) unlockAdminAudio();
+      }}
+    >
+      <AdminNewOrderAlert />
       <aside className="admin-sidebar">
         <div className="admin-brand">
           <strong>🌉 Zardain</strong>

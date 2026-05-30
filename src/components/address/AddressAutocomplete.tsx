@@ -29,6 +29,7 @@ export function AddressAutocomplete({
   onChangeRef.current = onChange;
   const skipNotifyRef = useRef(true);
   const lastNotifiedRef = useRef<ValidatedAddress | null | undefined>(undefined);
+  const pickingRef = useRef(false);
 
   const {
     query,
@@ -63,14 +64,29 @@ export function AddressAutocomplete({
   }, [validated]);
 
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
+    const handleOutside = (e: Event) => {
+      if (pickingRef.current) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('pointerdown', handleOutside);
+    document.addEventListener('touchstart', handleOutside, { passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
   }, [setOpen]);
+
+  const pickSuggestion = (suggestion: (typeof suggestions)[0]) => {
+    pickingRef.current = true;
+    setOpen(false);
+    void selectSuggestion(suggestion).finally(() => {
+      window.setTimeout(() => {
+        pickingRef.current = false;
+      }, 300);
+    });
+  };
 
   return (
     <div className="address-autocomplete" ref={containerRef}>
@@ -93,7 +109,8 @@ export function AddressAutocomplete({
           placeholder={placeholder}
           value={query}
           disabled={disabled}
-          autoComplete="off"
+          autoComplete="street-address"
+          enterKeyHint="next"
           onChange={(e) => {
             clearSelection();
             search(e.target.value);
@@ -123,8 +140,11 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 className="address-suggestion-card"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectSuggestion(s)}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  pickSuggestion(s);
+                }}
               >
                 <span className="suggestion-pin">📍</span>
                 <span className="suggestion-text">
@@ -149,7 +169,7 @@ export function AddressAutocomplete({
       )}
 
       {!validated && query.length >= 3 && !loading && !open && (
-        <p className="address-hint">Selecciona una dirección de la lista para continuar</p>
+        <p className="address-hint">Toca una dirección de la lista para continuar</p>
       )}
     </div>
   );

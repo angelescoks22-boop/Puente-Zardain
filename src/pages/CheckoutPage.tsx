@@ -27,6 +27,7 @@ import type { QueueEstimate } from '../utils/estimateTime';
 import { useSettingsStore, isStoreOpen, isStoreSaturated } from '../store/settingsStore';
 import type { OrderType, PaymentMethod, ValidatedAddress } from '../types';
 import { formatPrice } from '../utils/format';
+import { ApiError } from '../api/client';
 import {
   EMPTY_DELIVERY_DETAILS,
   pickDeliveryDetails,
@@ -161,28 +162,38 @@ export function CheckoutPage() {
       ? Math.round((cashPaidValue - total) * 100) / 100
       : null;
 
+  const scrollToCheckoutError = () => {
+    window.requestAnimationFrame(() => {
+      document.querySelector('.checkout-error-banner')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
   const handleSubmit = async () => {
     setError('');
 
     if (!storeOpen) {
       setError('El local está cerrado — no puedes confirmar pedidos ahora');
+      scrollToCheckoutError();
       return;
     }
 
     if (paymentMethod === 'cash') {
       if (!cashPaidAmount.trim() || Number.isNaN(cashPaidValue)) {
         setError('Indica con cuánto vas a pagar en efectivo');
+        scrollToCheckoutError();
         return;
       }
       if (cashPaidValue < total) {
         setError(`Debes pagar al menos ${formatPrice(total)}`);
+        scrollToCheckoutError();
         return;
       }
     }
 
     if (orderType === 'delivery') {
       if (!validatedAddress) {
-        setError('Selecciona una dirección válida en Arroyomolinos');
+        setError('Selecciona una dirección válida en Arroyomolinos (toca una sugerencia de la lista)');
+        scrollToCheckoutError();
         return;
       }
     }
@@ -242,9 +253,17 @@ export function CheckoutPage() {
       navigate(`/order/${order.id}`, { state: { confirmed: true } });
 
     } catch (e) {
-
-      setError(e instanceof Error ? e.message : 'Error al enviar pedido');
-
+      let msg = 'Error al enviar pedido. Inténtalo de nuevo.';
+      if (e instanceof ApiError) {
+        if (e.status === 0) msg = e.message;
+        else if (e.status === 401) msg = 'Tu sesión ha expirado. Vuelve a entrar.';
+        else if (e.status === 403) msg = e.message;
+        else msg = e.message || msg;
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      setError(msg);
+      scrollToCheckoutError();
     } finally {
 
       setLoading(false);
@@ -476,15 +495,12 @@ export function CheckoutPage() {
 
 
       {error && (
-
-        <ErrorRetry
-
-          message={error.includes('pedido') ? error : `Error al enviar pedido: ${error}`}
-
-          onRetry={handleSubmit}
-
-        />
-
+        <div className="checkout-error-banner">
+          <ErrorRetry
+            message={error}
+            onRetry={handleSubmit}
+          />
+        </div>
       )}
 
 

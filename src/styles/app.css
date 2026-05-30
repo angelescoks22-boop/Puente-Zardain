@@ -702,6 +702,73 @@ input, textarea, button { font: inherit; }
   font-weight: 500;
 }
 .auth-form label .input { margin-top: 4px; }
+
+/* Inputs 16px — evita zoom iOS; mismo aspecto móvil y PC */
+.auth-form .input,
+.checkout-page .input,
+.delivery-address-form .address-input,
+.otp-input-native {
+  font-size: 16px;
+  touch-action: manipulation;
+}
+
+.auth-page .card,
+.checkout-page .card,
+.delivery-address-form {
+  overflow: visible;
+}
+
+.otp-input-wrap {
+  position: relative;
+  margin: 16px 0;
+  min-height: 52px;
+  cursor: text;
+  touch-action: manipulation;
+}
+
+.otp-input-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.02;
+  z-index: 3;
+  border: none;
+  background: transparent;
+  caret-color: transparent;
+  letter-spacing: 0.5em;
+}
+
+.otp-input-grid--visual {
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+.otp-digit-display {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.otp-digit-display--active {
+  border-color: var(--primary);
+  transform: scale(1.04);
+}
+
+.otp-digit-display--filled {
+  background: var(--primary-light);
+}
+
 .otp-input {
   text-align: center;
   font-size: 1.5rem;
@@ -757,7 +824,20 @@ input, textarea, button { font: inherit; }
 .auth-subtitle {
   margin-top: -4px;
   margin-bottom: 12px;
+  line-height: 1.45;
 }
+
+.auth-pending-banner {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff7ed;
+  border: 1px solid rgba(232, 93, 4, 0.25);
+}
+
+.auth-pending-banner p { margin: 0; }
 
 .auth-admin-hint {
   margin: 4px 0 12px;
@@ -1610,14 +1690,15 @@ input, textarea, button { font: inherit; }
   left: 0;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 50;
+  z-index: 500;
   background: var(--surface);
   border-radius: 14px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
-  max-height: 260px;
+  max-height: min(260px, 40dvh);
   overflow-y: auto;
   padding: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .address-suggestion-card {
@@ -1625,13 +1706,21 @@ input, textarea, button { font: inherit; }
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 14px 14px;
+  min-height: 48px;
   border: none;
   background: transparent;
   border-radius: 10px;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.18s, transform 0.18s;
+}
+
+.address-suggestion-card:active {
+  background: var(--primary-light);
+  transform: scale(0.99);
 }
 
 .address-suggestion-card:hover {

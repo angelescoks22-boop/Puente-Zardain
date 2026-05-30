@@ -6,7 +6,7 @@ import { findOrCreateConversation } from './chat.service.js';
 import { generateAndStoreTicket } from './ticket.service.js';
 import { sendWelcomeChat } from './autoChat.service.js';
 import { logOrderStatusChange } from '../db/orderStatusLogs.js';
-import { notifyAdminDashboard } from './adminNotify.js';
+import { notifyNewOrder } from './adminNotify.js';
 import { notifyOrderCreatedByEmail } from './orderEmail.service.js';
 import { validateAddressPayload } from '../utils/addressValidation.js';
 import { formatDeliveryDisplay } from '../utils/deliveryAddress.js';
@@ -145,7 +145,13 @@ export async function createOrder(user: IUser, data: CreateOrderInput) {
     changedById: user.id,
   });
 
-  notifyAdminDashboard();
+  notifyNewOrder({
+    orderId: order.id,
+    clientName: order.clientName,
+    total: order.total,
+    type: order.type,
+    itemCount: order.items.reduce((sum, i) => sum + i.quantity, 0),
+  });
   notifyOrderCreatedByEmail(user, order);
   return order;
 }

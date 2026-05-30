@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   getAllConversations,
   getConversation,
@@ -21,6 +22,8 @@ const ADMIN_QUICK_REPLIES = [
 ];
 
 export function AdminChatPage() {
+  const [searchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('orderId');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,11 +39,36 @@ export function AdminChatPage() {
     getAllConversations().then(setConversations).catch(() => {});
   };
 
+  const openConversation = useCallback(async (conv: Conversation) => {
+    setSelected(conv);
+    try {
+      const data = await getConversation(conv.id);
+      setMessages(data.messages);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conv.id ? { ...c, unreadByAdmin: 0 } : c)),
+      );
+    } catch {
+      setMessages([]);
+    }
+  }, []);
+
+  const autoOpenedOrderRef = useRef<string | null>(null);
+
   useEffect(() => {
     loadConversations();
     const interval = setInterval(loadConversations, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!orderIdParam || conversations.length === 0) return;
+    if (autoOpenedOrderRef.current === orderIdParam) return;
+    const conv = conversations.find((c) => c.orderId === orderIdParam);
+    if (conv) {
+      autoOpenedOrderRef.current = orderIdParam;
+      void openConversation(conv);
+    }
+  }, [orderIdParam, conversations, openConversation]);
 
   useEffect(() => {
     return onConversationUpdate((conv) => {
@@ -71,19 +99,6 @@ export function AdminChatPage() {
       return tb - ta;
     });
   }, [conversations, filter]);
-
-  const openConversation = async (conv: Conversation) => {
-    setSelected(conv);
-    try {
-      const data = await getConversation(conv.id);
-      setMessages(data.messages);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conv.id ? { ...c, unreadByAdmin: 0 } : c)),
-      );
-    } catch {
-      setMessages([]);
-    }
-  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

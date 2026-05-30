@@ -2,14 +2,39 @@ import { useCallback, useState } from 'react';
 import { adminApi, useAdminPoll } from '../api/adminApi';
 import { CATEGORY_LABELS, MENU_CATEGORIES } from '../../data/products';
 
+type ProductRow = Record<string, unknown>;
+
+const emptyForm = { name: '', description: '', price: 0, category: 'hamburguesas', image: '🍔' };
+
 export function AdminMenuPage() {
   const fetcher = useCallback(() => adminApi.getProducts(), []);
-  const { data: products, refresh } = useAdminPoll(fetcher, 30000);
-  const [form, setForm] = useState({ name: '', description: '', price: 0, category: 'hamburguesas', image: '🍔' });
+  const { data: products, refresh, error } = useAdminPoll(fetcher, 30000);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
 
   const create = async () => {
+    if (!form.name.trim()) return;
     await adminApi.saveProduct({ ...form, ingredients: [], active: true });
-    setForm({ name: '', description: '', price: 0, category: 'hamburguesas', image: '🍔' });
+    setForm(emptyForm);
+    refresh();
+  };
+
+  const startEdit = (p: ProductRow) => {
+    setEditingId(p.id as string);
+    setEditForm({
+      name: String(p.name ?? ''),
+      description: String(p.description ?? ''),
+      price: Number(p.price ?? 0),
+      category: String(p.category ?? 'hamburguesas'),
+      image: String(p.image ?? '🍔'),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editForm.name.trim()) return;
+    await adminApi.saveProduct({ ...editForm, ingredients: [], active: true }, editingId);
+    setEditingId(null);
     refresh();
   };
 
@@ -21,6 +46,7 @@ export function AdminMenuPage() {
   return (
     <div>
       <h2>🍔 Gestión de carta</h2>
+      {error && <p className="admin-error-banner">⚠️ {error}</p>}
 
       <div className="stat-card" style={{ margin: '16px 0' }}>
         <h3>Nuevo producto</h3>
@@ -45,12 +71,36 @@ export function AdminMenuPage() {
           <tbody>
             {products?.map((p) => (
               <tr key={p.id as string}>
-                <td>{p.image as string} {p.name as string}</td>
-                <td>{p.category as string}</td>
-                <td>{(p.price as number).toFixed(2)} €</td>
-                <td>
-                  <button type="button" className="status-btn" onClick={() => remove(p.id as string)}>Desactivar</button>
-                </td>
+                {editingId === p.id ? (
+                  <>
+                    <td colSpan={4}>
+                      <div style={{ display: 'grid', gap: 8, maxWidth: 480 }}>
+                        <input className="input" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                        <input className="input" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+                        <input className="input" type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} />
+                        <select className="input" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
+                          {MENU_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
+                          ))}
+                        </select>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" className="status-btn" onClick={saveEdit}>Guardar</button>
+                          <button type="button" className="status-btn" onClick={() => setEditingId(null)}>Cancelar</button>
+                        </div>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td>{p.image as string} {p.name as string}</td>
+                    <td>{p.category as string}</td>
+                    <td>{(p.price as number).toFixed(2)} €</td>
+                    <td style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" className="status-btn" onClick={() => startEdit(p)}>Editar</button>
+                      <button type="button" className="status-btn" onClick={() => remove(p.id as string)}>Desactivar</button>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>

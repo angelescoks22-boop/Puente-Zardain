@@ -114,6 +114,12 @@ router.get('/address-suggestions', async (req, res) => {
 router.post('/send-code', validateBody(sendCodeSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? ''));
   const user = await usersRepo.findOneByEmail(email);
+  if (!user) {
+    return res.status(404).json({
+      message: 'No hay cuenta con este email. Regístrate primero.',
+      code: 'NO_ACCOUNT',
+    });
+  }
   if (user?.isBlocked || user?.clientStatus === 'blocked') {
     return res.status(403).json({ message: 'Cuenta bloqueada' });
   }
@@ -313,7 +319,12 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
   if (!valid) return res.status(401).json({ message: 'Credenciales incorrectas' });
 
   if (user.role === 'client' && !user.phoneVerified) {
-    return res.status(403).json({ message: 'Verifica tu email primero' });
+    await createAndSendOtp(normalizeEmail(user.email));
+    return res.status(403).json({
+      message: 'Verifica tu email con el código que te acabamos de enviar.',
+      code: 'EMAIL_NOT_VERIFIED',
+      email: normalizeEmail(user.email),
+    });
   }
 
   const token = signToken(user, Boolean(rememberMe));

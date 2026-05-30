@@ -287,7 +287,7 @@ ${notes ? `NOTA: ${notes}` : ''}
           {isBlockedCancel && (
             <span className="hint cancel-blocked">Cancelación bloqueada (en preparación o posterior)</span>
           )}
-          <Link to="/admin/chat" className="status-btn">💬 Chat</Link>
+          <Link to={`/admin/chat?orderId=${order.id}`} className="status-btn">💬 Chat</Link>
           <button type="button" className="status-btn" onClick={printTicket}>🧾 Imprimir</button>
           <button type="button" className="status-btn" onClick={() => adminApi.downloadTicket(order.id)}>⬇️ Ticket</button>
         </div>
@@ -315,7 +315,7 @@ export function AdminOrdersPage() {
     });
   }, [dateFilter, showActiveOnly]);
 
-  const { data: orders, refresh } = useAdminPoll(fetcher, 4000);
+  const { data: orders, refresh, error } = useAdminPoll(fetcher, 4000);
   const { data: queue } = useAdminPoll(useCallback(() => adminApi.getQueue(), []), 4000);
 
   const stats = useMemo(() => {
@@ -338,6 +338,8 @@ export function AdminOrdersPage() {
   return (
     <div>
       <h2>📦 Pedidos</h2>
+
+      {error && <p className="admin-error-banner">⚠️ {error}</p>}
 
       <div className="admin-filter-bar">
         {ORDER_DATE_FILTERS.map(({ id, label }) => (

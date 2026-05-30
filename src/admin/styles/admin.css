@@ -519,3 +519,162 @@ html.admin-dark .daily-report-text { background: #334155; color: #e2e8f0; }
   .business-hero { grid-template-columns: 1fr 1fr; }
   .customer-orders-list li { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* Alerta nuevo pedido */
+.admin-audio-unlock-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #1e293b;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+.admin-audio-unlock-btn {
+  background: #e85d04 !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 700 !important;
+}
+
+.admin-new-order-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: adminOverlayIn 0.2s ease;
+}
+@keyframes adminOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.admin-new-order-popup {
+  position: relative;
+  background: white;
+  border-radius: 20px;
+  padding: 36px 32px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(220, 38, 38, 0.45);
+  border: 4px solid #dc2626;
+  animation: adminPopupPulse 0.6s ease infinite alternate;
+}
+@keyframes adminPopupPulse {
+  from { box-shadow: 0 24px 80px rgba(220, 38, 38, 0.45); transform: scale(1); }
+  to { box-shadow: 0 24px 100px rgba(220, 38, 38, 0.7); transform: scale(1.02); }
+}
+.admin-new-order-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 24px;
+  border: 3px solid #dc2626;
+  animation: adminRingPulse 1.2s ease infinite;
+  pointer-events: none;
+}
+@keyframes adminRingPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.04); }
+}
+.admin-new-order-icon { font-size: 4rem; line-height: 1; margin-bottom: 8px; }
+.admin-new-order-popup h2 {
+  font-size: 2rem;
+  color: #dc2626;
+  margin: 0 0 8px;
+}
+.admin-new-order-client {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 16px;
+}
+.admin-new-order-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.admin-new-order-details span {
+  background: #f1f5f9;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+}
+.admin-new-order-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-new-order-primary {
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: #e85d04;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.admin-new-order-secondary {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1rem;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.admin-error-banner {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-weight: 600;
+}
+
+/* Cocina — pedidos pendientes */
+.kitchen-pending-section {
+  margin-bottom: 24px;
+}
+.kitchen-pending-section h3 {
+  color: #dc2626;
+  margin-bottom: 12px;
+}
+.kitchen-card--pending {
+  border: 3px solid #dc2626 !important;
+  background: #fef2f2 !important;
+}
+.delay-badge--new {
+  background: #dc2626;
+  color: white;
+  animation: adminRingPulse 1s ease infinite;
+}
+.kitchen-pending-count {
+  display: block;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.kitchen-accept-btn {
+  background: #16a34a !important;
+  color: white !important;
+  border-color: #16a34a !important;
+}
+
