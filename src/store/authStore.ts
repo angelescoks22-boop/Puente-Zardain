@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { User, ValidatedAddress } from '../types';
 import * as authApi from '../api/auth';
-import { setUnauthorizedHandler } from '../api/client';
+import { getPendingEmail, setPendingEmail, setUnauthorizedHandler } from '../api/client';
 
 type AuthState = {
   user: User | null;
@@ -18,7 +18,7 @@ type AuthState = {
     email: string;
     password?: string;
     address: ValidatedAddress;
-  }) => Promise<void>;
+  }) => Promise<{ existingAccount?: boolean }>;
   verifyCode: (code: string, rememberMe?: boolean) => Promise<'client' | 'admin'>;
   resendCode: () => Promise<void>;
   login: (identifier: string, password: string, rememberMe?: boolean) => Promise<'client' | 'admin'>;
@@ -34,7 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   role: null,
   isLoading: true,
   isAuthenticated: false,
-  pendingEmail: null,
+  pendingEmail: getPendingEmail(),
   error: null,
 
   init: async () => {
@@ -46,48 +46,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         role: user?.role ?? 'client',
         isAuthenticated: !!user,
         isLoading: false,
+        pendingEmail: user ? null : get().pendingEmail ?? getPendingEmail(),
       });
+      if (user) setPendingEmail(null);
     } catch {
-      set({ user: null, role: null, isAuthenticated: false, isLoading: false });
+      set({
+        user: null,
+        role: null,
+        isAuthenticated: false,
+        isLoading: false,
+        pendingEmail: getPendingEmail(),
+      });
     }
   },
 
   sendCode: async (email) => {
     set({ error: null });
-    await authApi.sendCode(email);
-    set({ pendingEmail: email.toLowerCase().trim() });
+    const normalized = email.toLowerCase().trim();
+    await authApi.sendCode(normalized);
+    setPendingEmail(normalized);
+    set({ pendingEmail: normalized });
   },
 
   register: async (data) => {
     set({ error: null });
     const result = await authApi.register(data);
+    setPendingEmail(result.email);
     set({ pendingEmail: result.email });
+    return { existingAccount: result.existingAccount };
   },
 
   verifyCode: async (code, rememberMe = true) => {
-    const email = get().pendingEmail;
-    if (!email) throw new Error('Sin verificación pendiente');
+    const email = get().pendingEmail ?? getPendingEmail();
+    if (!email) throw new Error('Sin verificación pendiente. Vuelve atrás e introduce tu email.');
     set({ error: null });
     const { user, role } = await authApi.verifyCode(email, code, rememberMe);
+    setPendingEmail(null);
     set({ user, role: role as 'client' | 'admin', isAuthenticated: true, pendingEmail: null });
     return role as 'client' | 'admin';
   },
 
   resendCode: async () => {
-    const email = get().pendingEmail;
-    if (!email) return;
-    await authApi.resendCode(email);
+    const email = get().pendingEmail ?? getPendingEmail();
+    if (!email) throw new Error('Sin email pendiente');
+    try {
+      await authApi.resendCode(email);
+    } catch {
+      await authApi.sendCode(email);
+    }
   },
 
   login: async (identifier, password, rememberMe = false) => {
     set({ error: null });
     const { user, role } = await authApi.login(identifier, password, rememberMe);
-    set({ user, role: role as 'client' | 'admin', isAuthenticated: true });
+    setPendingEmail(null);
+    set({ user, role: role as 'client' | 'admin', isAuthenticated: true, pendingEmail: null });
     return role as 'client' | 'admin';
   },
 
   logout: async () => {
     await authApi.logout();
+    setPendingEmail(null);
     set({ user: null, role: null, isAuthenticated: false, pendingEmail: null });
   },
 
@@ -101,6 +120,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user, role: user.role ?? 'client', isAuthenticated: true }),
   clearError: () => set({ error: null }),
   handleSessionExpired: () => {
+    setPendingEmail(null);
     set({ user: null, role: null, isAuthenticated: false, pendingEmail: null, error: 'Sesión expirada' });
   },
 }));

@@ -1,4 +1,7 @@
+import { getApiBase } from '../config/api';
+
 const TOKEN_KEY = 'zardain_token';
+const PENDING_EMAIL_KEY = 'zardain_pending_email';
 
 type UnauthorizedHandler = () => void;
 let onUnauthorized: UnauthorizedHandler | null = null;
@@ -31,7 +34,16 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+export const API_BASE = getApiBase();
+
+export function getPendingEmail(): string | null {
+  return sessionStorage.getItem(PENDING_EMAIL_KEY);
+}
+
+export function setPendingEmail(email: string | null): void {
+  if (email) sessionStorage.setItem(PENDING_EMAIL_KEY, email.toLowerCase().trim());
+  else sessionStorage.removeItem(PENDING_EMAIL_KEY);
+}
 
 export async function apiFetch<T>(
   endpoint: string,
@@ -56,7 +68,13 @@ export async function apiFetch<T>(
     if (response.status === 401 && onUnauthorized) {
       onUnauthorized();
     }
-    throw new ApiError(error.message ?? 'Error desconocido', response.status, error.code);
+    const msg =
+      response.status === 404 && !API_BASE.startsWith('http')
+        ? 'Servidor no disponible. Despliega el backend y configura VITE_API_URL en Netlify.'
+        : response.status === 404
+          ? 'API no encontrada. Revisa VITE_API_URL en Netlify.'
+          : (error.message ?? 'Error desconocido');
+    throw new ApiError(msg, response.status, error.code);
   }
 
   if (response.status === 204) return undefined as T;

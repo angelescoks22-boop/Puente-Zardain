@@ -91,7 +91,7 @@ function OtpStep({
             {cooldown > 0 ? `Reenviar en ${cooldown}s` : 'Reenviar código'}
           </button>
           <button type="button" className="link-btn" onClick={onBack}>
-            Cambiar email
+            Volver
           </button>
         </div>
       </Card>
@@ -104,8 +104,8 @@ export function AuthPage() {
   const { sendCode, register, login, pendingEmail, error, clearError } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
 
-  const [mode, setMode] = useState<'login' | 'register' | 'admin'>('login');
-  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [step, setStep] = useState<'form' | 'otp'>(() => (pendingEmail ? 'otp' : 'form'));
   const [email, setEmail] = useState('');
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [validatedAddress, setValidatedAddress] = useState<ValidatedAddress | null>(null);
@@ -115,6 +115,15 @@ export function AuthPage() {
   const [localError, setLocalError] = useState('');
 
   const activeEmail = pendingEmail ?? email;
+  const hasPassword = form.password.trim().length > 0;
+
+  useEffect(() => {
+    if (pendingEmail && !email) setEmail(pendingEmail);
+  }, [pendingEmail, email]);
+
+  useEffect(() => {
+    if (pendingEmail) setStep('otp');
+  }, [pendingEmail]);
 
   const goHome = (role: 'client' | 'admin') => {
     navigate(role === 'admin' ? '/admin' : '/');
@@ -124,37 +133,31 @@ export function AuthPage() {
     return (
       <OtpStep
         email={activeEmail}
-        onBack={() => setStep('form')}
+        onBack={() => {
+          setStep('form');
+          clearError();
+          setLocalError('');
+        }}
         onSuccess={goHome}
       />
     );
   }
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setLocalError('');
     clearError();
     try {
+      if (hasPassword) {
+        const role = await login(email.trim(), form.password, rememberMe);
+        showToast(role === 'admin' ? 'Panel técnico' : '¡Bienvenido!');
+        navigate(role === 'admin' ? '/admin' : '/');
+        return;
+      }
       await sendCode(email.trim());
       setStep('otp');
       showToast('📧 Código enviado a tu correo');
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setLocalError('');
-    clearError();
-    try {
-      const role = await login(email.trim(), form.password, rememberMe);
-      showToast('Panel admin');
-      navigate(role === 'admin' ? '/admin' : '/');
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -172,18 +175,22 @@ export function AuthPage() {
     setLocalError('');
     clearError();
     try {
-      await register({
+      const result = await register({
         name: form.name,
         phone: form.phone,
         email: email.trim(),
-        password: form.password,
+        ...(form.password.trim() ? { password: form.password } : {}),
         address: {
           ...validatedAddress,
           ...sanitizeDeliveryDetailsFields(deliveryDetails),
         },
       });
       setStep('otp');
-      showToast('📧 Código enviado a tu correo');
+      showToast(
+        result.existingAccount
+          ? 'Ya tienes cuenta — te enviamos un código para entrar'
+          : '📧 Código enviado a tu correo',
+      );
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -195,28 +202,33 @@ export function AuthPage() {
 
   return (
     <div className="page auth-page">
-      <h1>{mode === 'register' ? '📝 Registro' : mode === 'admin' ? '🔐 Admin' : '👋 Entrar'}</h1>
+      <h1>{mode === 'register' ? '📝 Registro' : '👋 Entrar'}</h1>
       <p className="hint auth-subtitle">
-        {mode === 'login' && 'Accede con tu email — te enviamos un código, sin contraseña.'}
-        {mode === 'register' && 'Crea tu cuenta y verifica tu email.'}
-        {mode === 'admin' && 'Acceso al panel con email y contraseña.'}
+        {mode === 'login'
+          ? 'Cliente: solo email y te mandamos un código. Admin: email + contraseña.'
+          : 'Crea tu cuenta y verifica tu email. Si ya te registraste, usa Entrar.'}
       </p>
 
       <div className="auth-tabs">
-        <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setLocalError(''); }}>
+        <button
+          type="button"
+          className={mode === 'login' ? 'active' : ''}
+          onClick={() => { setMode('login'); setLocalError(''); clearError(); }}
+        >
           Entrar
         </button>
-        <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setLocalError(''); }}>
+        <button
+          type="button"
+          className={mode === 'register' ? 'active' : ''}
+          onClick={() => { setMode('register'); setLocalError(''); clearError(); }}
+        >
           Registrarse
-        </button>
-        <button type="button" className={mode === 'admin' ? 'active' : ''} onClick={() => { setMode('admin'); setLocalError(''); }}>
-          Admin
         </button>
       </div>
 
       <Card>
         {mode === 'login' && (
-          <form onSubmit={handleEmailLogin} className="auth-form">
+          <form onSubmit={handleLogin} className="auth-form">
             <label>
               Email
               <input
@@ -229,30 +241,33 @@ export function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
-            {displayError && <p className="form-error">{displayError}</p>}
-            <Button fullWidth size="lg" disabled={loading}>
-              {loading ? 'Enviando…' : 'Enviar código'}
-            </Button>
-          </form>
-        )}
-
-        {mode === 'admin' && (
-          <form onSubmit={handleAdminLogin} className="auth-form">
-            <label>
-              Email admin
-              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            </label>
             <label>
               Contraseña
-              <input className="input" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Solo si eres admin del local"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
             </label>
+            <p className="hint auth-admin-hint">
+              👤 Cliente: deja la contraseña vacía y pulsa «Enviar código».
+              <br />
+              🔐 Admin: escribe tu contraseña y pulsa «Entrar al panel».
+            </p>
             <label className="remember-row">
               <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
               Recuérdame
             </label>
             {displayError && <p className="form-error">{displayError}</p>}
             <Button fullWidth size="lg" disabled={loading}>
-              Entrar al panel
+              {loading
+                ? 'Un momento…'
+                : hasPassword
+                  ? 'Entrar al panel'
+                  : 'Enviar código'}
             </Button>
           </form>
         )}
@@ -268,12 +283,19 @@ export function AuthPage() {
               <input className="input" type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </label>
             <label>
-              Email *
+              Email
               <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
             <label>
-              Contraseña (opcional, para recuperación)
-              <input className="input" type="password" minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Mínimo 6 caracteres" />
+              Contraseña (opcional)
+              <input
+                className="input"
+                type="password"
+                minLength={6}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+              />
             </label>
             <DeliveryAddressForm
               validatedAddress={validatedAddress}

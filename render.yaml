@@ -1,0 +1,35 @@
+# Despliega el backend en Render (gratis con límites).
+# Dashboard → New → Blueprint → conecta este repo.
+services:
+  - type: web
+    name: puente-zardain-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm install --prefix server
+    startCommand: npm run start --prefix server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        value: https://puente-de-zardain.netlify.app
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@zardain.com
+      - key: ADMIN_PASSWORD
+        sync: false

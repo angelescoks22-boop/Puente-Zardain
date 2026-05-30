@@ -19,13 +19,13 @@ export async function upsertByEmail(data: UpsertPendingOtpInput): Promise<IPendi
     `INSERT INTO pending_otps (email, phone, name, password_hash, otp, attempts, expires_at, pending_address)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
      ON CONFLICT (email) DO UPDATE SET
-       phone = EXCLUDED.phone,
-       name = EXCLUDED.name,
-       password_hash = EXCLUDED.password_hash,
+       phone = COALESCE(EXCLUDED.phone, pending_otps.phone),
+       name = COALESCE(EXCLUDED.name, pending_otps.name),
+       password_hash = COALESCE(EXCLUDED.password_hash, pending_otps.password_hash),
+       pending_address = COALESCE(EXCLUDED.pending_address, pending_otps.pending_address),
        otp = EXCLUDED.otp,
        attempts = EXCLUDED.attempts,
-       expires_at = EXCLUDED.expires_at,
-       pending_address = EXCLUDED.pending_address
+       expires_at = EXCLUDED.expires_at
      RETURNING *`,
     [
       email,

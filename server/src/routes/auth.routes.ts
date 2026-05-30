@@ -117,6 +117,12 @@ router.post('/send-code', validateBody(sendCodeSchema), async (req, res) => {
   if (user?.isBlocked || user?.clientStatus === 'blocked') {
     return res.status(403).json({ message: 'Cuenta bloqueada' });
   }
+  if (user?.role === 'admin') {
+    return res.status(400).json({
+      message: 'Cuenta de administrador: entra con email y contraseña (no uses código OTP).',
+      code: 'ADMIN_USE_PASSWORD',
+    });
+  }
 
   await createAndSendOtp(email);
   res.json({ ok: true, email, emailSent: isEmailConfigured() });
@@ -157,24 +163,53 @@ async function completeEmailVerification(
   } else if (!user) {
     const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10);
     user = await usersRepo.create({
-      name: email.split('@')[0] || 'Cliente',
-      phone: placeholderPhoneFromEmail(email),
+      name: pending.name?.trim() || email.split('@')[0] || 'Cliente',
+      phone: pending.phone ?? placeholderPhoneFromEmail(email),
       email,
       password: passwordHash,
       role: 'client',
       zardas: ZARDAS_REGISTER,
       phoneVerified: true,
     });
+    if (pending.pendingAddress) {
+      user.addresses = [{ ...pending.pendingAddress, id: crypto.randomUUID(), isDefault: true, label: 'Casa' }];
+      user.address = pending.pendingAddress.fullAddress;
+      user = await usersRepo.save(user);
+    }
   } else if (user.isBlocked || user.clientStatus === 'blocked') {
     return res.status(403).json({ message: 'Cuenta bloqueada' });
-  } else if (!user.phoneVerified) {
-    user.phoneVerified = true;
-    await usersRepo.save(user);
+  } else {
+    let dirty = false;
+    if (!user.phoneVerified) {
+      user.phoneVerified = true;
+      dirty = true;
+    }
+    const placeholderPhone = placeholderPhoneFromEmail(email);
+    if (pending.name?.trim() && (user.name === 'Cliente' || user.name === email.split('@')[0])) {
+      user.name = pending.name.trim();
+      dirty = true;
+    }
+    if (pending.phone && user.phone === placeholderPhone) {
+      user.phone = pending.phone;
+      dirty = true;
+    }
+    if (pending.pendingAddress && !user.addresses?.length) {
+      user.addresses = [{ ...pending.pendingAddress, id: crypto.randomUUID(), isDefault: true, label: 'Casa' }];
+      user.address = pending.pendingAddress.fullAddress;
+      dirty = true;
+    }
+    if (dirty) {
+      user = await usersRepo.save(user);
+    }
   }
 
   await pendingOtpsRepo.deleteByEmail(email);
-  const token = signToken(user, rememberMe);
-  res.json({ user: formatUser(user), token, role: user.role, rememberMe });
+  const fresh = await usersRepo.findById(user.id);
+  if (!fresh) {
+    return res.status(500).json({ message: 'Error al cargar el usuario' });
+  }
+  const token = signToken(fresh, rememberMe);
+  res.json({ user: formatUser(fresh), token, role: fresh.role, rememberMe });
 }
 
 router.post('/verify-code', validateBody(verifyCodeSchema), async (req, res) => {
@@ -200,12 +235,37 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
     });
   }
 
+  const normalizedEmail = normalizeEmail(email);
   const exists = await usersRepo.findOneByPhoneOrEmail(phone, email);
-  if (exists) return res.status(409).json({ message: 'Teléfono o email ya registrado' });
+
+  if (exists) {
+    if (exists.email.toLowerCase() === normalizedEmail) {
+      if (exists.role === 'admin') {
+        return res.status(400).json({
+          message: 'Cuenta de administrador: usa Entrar con email y contraseña.',
+          code: 'ADMIN_USE_PASSWORD',
+        });
+      }
+      const passwordHash = await bcrypt.hash(password || crypto.randomUUID(), 10);
+      await createAndSendOtp(normalizedEmail, {
+        phone,
+        name: name.trim(),
+        passwordHash,
+        pendingAddress: addressCheck.address,
+      });
+      return res.json({
+        needsOtp: true,
+        email: normalizedEmail,
+        existingAccount: true,
+        message: 'Ya tienes cuenta. Te hemos enviado un código para entrar.',
+        emailSent: isEmailConfigured(),
+      });
+    }
+    return res.status(409).json({ message: 'Este teléfono ya está registrado con otro email' });
+  }
 
   const otp = generateOtp();
   const passwordHash = await bcrypt.hash(password || crypto.randomUUID(), 10);
-  const normalizedEmail = normalizeEmail(email);
 
   await pendingOtpsRepo.upsertByEmail({
     email: normalizedEmail,
@@ -225,7 +285,11 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
 router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? req.body.phone ?? ''));
   const pending = await pendingOtpsRepo.findByEmail(email);
-  if (!pending) return res.status(400).json({ message: 'No hay verificación pendiente' });
+
+  if (!pending) {
+    await createAndSendOtp(email);
+    return res.json({ ok: true, emailSent: isEmailConfigured() });
+  }
 
   await createAndSendOtp(email, {
     phone: pending.phone,
@@ -358,6 +422,8 @@ router.post('/me/addresses', authenticate, async (req: AuthRequest, res) => {
   if (makeDefault) {
     user.addresses?.forEach((a) => { a.isDefault = false; });
   }
+
+  if (!user.addresses) user.addresses = [];
 
   user.addresses.push({
     ...check.address,

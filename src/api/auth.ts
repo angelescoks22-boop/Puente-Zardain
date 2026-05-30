@@ -28,7 +28,12 @@ export async function verifyCode(
   return res;
 }
 
-export async function register(data: RegisterData): Promise<{ needsOtp: true; email: string }> {
+export async function register(data: RegisterData): Promise<{
+  needsOtp: true;
+  email: string;
+  existingAccount?: boolean;
+  message?: string;
+}> {
   return apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(data) });
 }
 

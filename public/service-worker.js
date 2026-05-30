@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zardain-v1';
+const CACHE_NAME = 'zardain-v2';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE = [
@@ -8,7 +8,6 @@ const PRECACHE = [
   '/offline.html',
   '/icon-192.png',
   '/icon-512.png',
-  '/favicon.svg',
 ];
 
 self.addEventListener('install', (event) => {
@@ -27,37 +26,43 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
-
   if (request.method !== 'GET') return;
 
-  // API y sockets siempre van a red
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) return;
+  const url = new URL(request.url);
 
-  // Navegación: red primero, fallback cache / offline
+  // API, sockets y dominios externos: solo red (no interceptar)
+  if (
+    url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/socket.io') ||
+    url.origin !== self.location.origin
+  ) {
+    return;
+  }
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          }
           return res;
         })
         .catch(async () => {
           const cached = await caches.match('/index.html');
-          return cached ?? caches.match(OFFLINE_URL);
+          return cached ?? caches.match(OFFLINE_URL) ?? Response.error();
         }),
     );
     return;
   }
 
-  // Estáticos: cache primero, luego red
-  if (url.origin === self.location.origin) {
+  if (url.pathname.startsWith('/assets/') || PRECACHE.includes(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((res) => {
-          if (res.ok && (url.pathname.startsWith('/assets/') || PRECACHE.includes(url.pathname))) {
+          if (res.ok) {
             const copy = res.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }

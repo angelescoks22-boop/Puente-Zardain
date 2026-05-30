@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { getToken } from './client';
+import { getSocketOrigin } from '../config/api';
 import type { ChatMessage } from './chat';
 
 let sharedSocket: Socket | null = null;
@@ -62,7 +63,8 @@ function setupSocket(socket: Socket) {
 }
 
 function createSocket(token: string | null): Socket {
-  const socket = io(window.location.origin, {
+  const origin = getSocketOrigin() || window.location.origin;
+  const socket = io(origin, {
     auth: token ? { token } : {},
     transports: ['websocket', 'polling'],
     autoConnect: true,

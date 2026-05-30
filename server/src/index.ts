@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import { connectDB } from './config/db.js';
-import { env } from './config/env.js';
+import { env, getClientOrigins } from './config/env.js';
 import { seedDatabase } from './utils/seed.js';
 import authRoutes from './routes/auth.routes.js';
 import productsRoutes from './routes/products.routes.js';
@@ -22,9 +22,11 @@ import { setupChatSocket } from './socket/chat.socket.js';
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = getClientOrigins();
+
 const io = new Server(server, {
   cors: {
-    origin: env.clientUrl,
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -34,7 +36,18 @@ setAdminIo(io);
 setChatIoStatus(true);
 setupChatSocket(io);
 
-app.use(cors({ origin: env.clientUrl, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS bloqueado: ${origin}`));
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'Puente Zardain API' }));
@@ -60,7 +73,7 @@ async function start() {
     }
     throw err;
   });
-  server.listen(env.port, () => {
+  server.listen(env.port, '0.0.0.0', () => {
     console.log(`🚀 API Puente Zardain → http://localhost:${env.port}`);
     console.log(`💬 Socket.io activo`);
     console.log(`👤 Admin: ${env.adminEmail} / ${env.adminPassword}`);

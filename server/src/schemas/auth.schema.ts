@@ -35,7 +35,10 @@ export const registerSchema = z.object({
   name: z.string().min(2, 'Nombre demasiado corto').max(100),
   email: z.string().email('Email inválido'),
   phone: z.string().min(9, 'Teléfono inválido').max(20),
-  password: z.string().min(6, 'Contraseña mínimo 6 caracteres').optional(),
+  password: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    z.string().min(6, 'Contraseña mínimo 6 caracteres').optional(),
+  ),
   address: addressSchema,
 });
 
