@@ -30,6 +30,7 @@ export function AddressAutocomplete({
   const skipNotifyRef = useRef(true);
   const lastNotifiedRef = useRef<ValidatedAddress | null | undefined>(undefined);
   const pickingRef = useRef(false);
+  const lastPickIdRef = useRef<string | null>(null);
 
   const {
     query,
@@ -63,6 +64,13 @@ export function AddressAutocomplete({
     onChangeRef.current(validated);
   }, [validated]);
 
+  // Sincronizar padre cuando hay dirección validada (refuerzo móvil)
+  useEffect(() => {
+    if (validated?.fullAddress) {
+      onChangeRef.current(validated);
+    }
+  }, [validated?.fullAddress, validated?.lat, validated?.lng]);
+
   useEffect(() => {
     const handleOutside = (e: Event) => {
       if (pickingRef.current) return;
@@ -71,21 +79,26 @@ export function AddressAutocomplete({
       }
     };
     document.addEventListener('pointerdown', handleOutside);
-    document.addEventListener('touchstart', handleOutside, { passive: true });
-    return () => {
-      document.removeEventListener('pointerdown', handleOutside);
-      document.removeEventListener('touchstart', handleOutside);
-    };
+    return () => document.removeEventListener('pointerdown', handleOutside);
   }, [setOpen]);
 
   const pickSuggestion = (suggestion: (typeof suggestions)[0]) => {
+    if (lastPickIdRef.current === suggestion.id) return;
+    lastPickIdRef.current = suggestion.id;
     pickingRef.current = true;
     setOpen(false);
     void selectSuggestion(suggestion).finally(() => {
       window.setTimeout(() => {
         pickingRef.current = false;
-      }, 300);
+        lastPickIdRef.current = null;
+      }, 400);
     });
+  };
+
+  const handlePick = (suggestion: (typeof suggestions)[0]) => (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    pickSuggestion(suggestion);
   };
 
   return (
@@ -140,11 +153,9 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 className="address-suggestion-card"
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  pickSuggestion(s);
-                }}
+                onPointerDown={handlePick(s)}
+                onTouchEnd={handlePick(s)}
+                onClick={handlePick(s)}
               >
                 <span className="suggestion-pin">📍</span>
                 <span className="suggestion-text">

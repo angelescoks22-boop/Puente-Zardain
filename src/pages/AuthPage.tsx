@@ -7,9 +7,12 @@ import { Card } from '../components/ui/Card';
 import { DeliveryAddressForm } from '../components/address/DeliveryAddressForm';
 import { OtpInput } from '../components/auth/OtpInput';
 import type { ValidatedAddress } from '../types';
-import { useAlertStore } from '../store/alertStore';
+import {
+  EMPTY_DELIVERY_DETAILS,
+  sanitizeDeliveryDetailsFields,
+} from '../utils/deliveryAddress';
 import { ApiError, setPendingEmail } from '../api/client';
-import { AUTH_ERROR_TITLE, getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
+import { getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
 
 const RESEND_COOLDOWN = 60;
 
@@ -24,7 +27,6 @@ function OtpStep({
 }) {
   const { verifyCode, resendCode, error, clearError } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
-  const showAlert = useAlertStore((s) => s.alert);
   const [otp, setOtp] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,10 @@ function OtpStep({
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6) return;
+    if (otp.length !== 6) {
+      setLocalError('Escribe los 6 dígitos del código');
+      return;
+    }
     setLoading(true);
     setLocalError('');
     clearError();
@@ -48,9 +53,7 @@ function OtpStep({
       showToast('¡Acceso confirmado!');
       onSuccess(role);
     } catch (err) {
-      const msg = getAuthErrorMessage(err);
-      setLocalError(msg);
-      void showAlert(msg, AUTH_ERROR_TITLE);
+      setLocalError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -65,9 +68,7 @@ function OtpStep({
       setCooldown(RESEND_COOLDOWN);
       showToast('📧 Nuevo código enviado');
     } catch (err) {
-      const msg = getAuthErrorMessage(err);
-      setLocalError(msg);
-      void showAlert(msg, AUTH_ERROR_TITLE);
+      setLocalError(getAuthErrorMessage(err));
     }
   };
 
@@ -80,7 +81,7 @@ function OtpStep({
         <p className="auth-email-sent">
           📧 Código enviado a <strong>{email}</strong>
         </p>
-        <p className="hint">Revisa tu bandeja (y spam). Caduca en 5 minutos.</p>
+        <p className="hint">Revisa bandeja y spam. Caduca en 5 minutos.</p>
         <form onSubmit={handleVerify}>
           <OtpInput value={otp} onChange={setOtp} disabled={loading} />
           {displayError && <p className="form-error">{displayError}</p>}
@@ -88,7 +89,7 @@ function OtpStep({
             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
             Recuérdame en este dispositivo
           </label>
-          <Button fullWidth size="lg" disabled={loading || otp.length !== 6}>
+          <Button fullWidth size="lg" type="submit" disabled={loading || otp.length !== 6}>
             {loading ? 'Verificando…' : 'Confirmar código'}
           </Button>
         </form>
@@ -117,13 +118,13 @@ export function AuthPage() {
     clearPendingVerification,
   } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
-  const showAlert = useAlertStore((s) => s.alert);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [email, setEmail] = useState(pendingEmail ?? '');
   const [form, setForm] = useState({ name: '', phone: '', password: '' });
   const [validatedAddress, setValidatedAddress] = useState<ValidatedAddress | null>(null);
+  const [deliveryDetails, setDeliveryDetails] = useState(EMPTY_DELIVERY_DETAILS);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -163,12 +164,9 @@ export function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
     if (!isValidEmailInput(trimmedEmail)) {
-      void showAlert(
-        'Revisa tu email: debe incluir @ y un dominio (por ejemplo .com).',
-        AUTH_ERROR_TITLE,
-      );
+      setLocalError('Revisa tu email: debe incluir @ y un dominio (ej. .com).');
       return;
     }
     setLoading(true);
@@ -176,12 +174,12 @@ export function AuthPage() {
     clearError();
     try {
       if (hasPassword) {
-        const role = await login(trimmedEmail.toLowerCase(), form.password.trim(), rememberMe);
+        const role = await login(trimmedEmail, form.password.trim(), rememberMe);
         showToast(role === 'admin' ? 'Panel técnico' : '¡Bienvenido!');
         navigate(role === 'admin' ? '/admin' : '/');
         return;
       }
-      await sendCode(trimmedEmail.toLowerCase());
+      await sendCode(trimmedEmail);
       goToOtp(trimmedEmail);
       showToast('📧 Código enviado a tu correo');
     } catch (err) {
@@ -192,9 +190,7 @@ export function AuthPage() {
         showToast('📧 Te hemos enviado un código de verificación');
         return;
       }
-      const msg = getAuthErrorMessage(err);
-      setLocalError(msg);
-      void showAlert(msg, AUTH_ERROR_TITLE);
+      setLocalError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -202,38 +198,36 @@ export function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
     if (!isValidEmailInput(trimmedEmail)) {
-      void showAlert(
-        'Revisa tu email: debe incluir @ y un dominio (por ejemplo .com).',
-        AUTH_ERROR_TITLE,
-      );
+      setLocalError('Revisa tu email: debe incluir @ y un dominio (ej. .com).');
       return;
     }
     if (!form.name.trim() || form.name.trim().length < 2) {
-      void showAlert('Escribe tu nombre (mínimo 2 letras).', AUTH_ERROR_TITLE);
+      setLocalError('Escribe tu nombre (mínimo 2 letras).');
       return;
     }
     if (!form.phone.trim() || form.phone.trim().length < 9) {
-      void showAlert('Escribe un teléfono válido (mínimo 9 dígitos).', AUTH_ERROR_TITLE);
+      setLocalError('Escribe un teléfono válido (mínimo 9 dígitos).');
       return;
     }
     if (form.password.trim() && form.password.trim().length < 6) {
-      void showAlert('La contraseña debe tener al menos 6 caracteres.', AUTH_ERROR_TITLE);
+      setLocalError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
-    if (!validatedAddress) {
-      void showAlert('Selecciona una dirección válida en Arroyomolinos', 'Dirección');
+    if (!validatedAddress?.fullAddress || validatedAddress.lat == null) {
+      setLocalError('Busca tu calle y toca una dirección de la lista (debe salir ✅ verde).');
       return;
     }
     setLoading(true);
     setLocalError('');
     clearError();
     try {
+      const extras = sanitizeDeliveryDetailsFields(deliveryDetails);
       const result = await register({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        email: trimmedEmail.toLowerCase(),
+        email: trimmedEmail,
         ...(form.password.trim() ? { password: form.password.trim() } : {}),
         address: {
           fullAddress: validatedAddress.fullAddress,
@@ -241,6 +235,7 @@ export function AuthPage() {
           lat: validatedAddress.lat,
           lng: validatedAddress.lng,
           ...(validatedAddress.placeId ? { placeId: validatedAddress.placeId } : {}),
+          ...extras,
         },
       });
       goToOtp(trimmedEmail);
@@ -250,9 +245,7 @@ export function AuthPage() {
           : '📧 Código enviado a tu correo',
       );
     } catch (err) {
-      const msg = getAuthErrorMessage(err);
-      setLocalError(msg);
-      void showAlert(msg, AUTH_ERROR_TITLE);
+      setLocalError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -263,21 +256,11 @@ export function AuthPage() {
   return (
     <div className="page auth-page">
       <h1>{mode === 'register' ? '📝 Registro' : '👋 Entrar'}</h1>
-      {mode === 'register' && (
-        <p className="hint auth-subtitle">
-          Crea tu cuenta y verifica tu email. Si ya te registraste, usa Entrar.
-        </p>
-      )}
-      {mode === 'login' && (
-        <p className="hint auth-subtitle">
-          Con contraseña entras al momento. Sin contraseña te enviamos un código por email.
-        </p>
-      )}
 
       {pendingEmail && step === 'form' && (
         <Card className="auth-pending-banner">
           <p>Tienes un código pendiente para <strong>{pendingEmail}</strong></p>
-          <Button size="sm" onClick={() => goToOtp(pendingEmail)}>
+          <Button size="sm" type="button" onClick={() => goToOtp(pendingEmail)}>
             Continuar verificación
           </Button>
         </Card>
@@ -336,7 +319,7 @@ export function AuthPage() {
               Recuérdame
             </label>
             {displayError && <p className="form-error">{displayError}</p>}
-            <Button fullWidth size="lg" disabled={loading}>
+            <Button fullWidth size="lg" type="submit" disabled={loading}>
               {loading ? 'Un momento…' : hasPassword ? 'Entrar' : 'Enviar código por email'}
             </Button>
           </form>
@@ -394,15 +377,20 @@ export function AuthPage() {
             <DeliveryAddressForm
               validatedAddress={validatedAddress}
               onValidatedAddressChange={setValidatedAddress}
-              details={{ portal: '', floor: '', door: '', details: '' }}
-              onDetailsChange={() => {}}
+              details={deliveryDetails}
+              onDetailsChange={setDeliveryDetails}
               disabled={loading}
-              showOptionalDetails={false}
+              showOptionalDetails
             />
+            {validatedAddress && (
+              <p className="address-feedback valid" role="status">
+                ✅ Dirección lista — puedes crear la cuenta
+              </p>
+            )}
             <p className="hint">Verificaremos tu email con un código de 6 dígitos.</p>
             {displayError && <p className="form-error">{displayError}</p>}
-            <Button fullWidth size="lg" disabled={loading || !validatedAddress}>
-              Crear cuenta (+25 Zardas)
+            <Button fullWidth size="lg" type="submit" disabled={loading}>
+              {loading ? 'Un momento…' : 'Crear cuenta (+25 Zardas)'}
             </Button>
           </form>
         )}
