@@ -64,20 +64,26 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Error de conexión' }));
+    let error: { message?: string; code?: string } = { message: 'Error de conexión' };
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      error = await response.json().catch(() => error);
+    } else if (response.status === 404) {
+      error = { message: 'No se pudo conectar con el servidor. Inténtalo en unos segundos.' };
+    }
     if (response.status === 401 && onUnauthorized) {
       onUnauthorized();
     }
-    const msg =
-      response.status === 404 && !API_BASE.startsWith('http')
-        ? 'Servidor no disponible. Despliega el backend y configura VITE_API_URL en Netlify.'
-        : response.status === 404
-          ? 'API no encontrada. Revisa VITE_API_URL en Netlify.'
-          : (error.message ?? 'Error desconocido');
-    throw new ApiError(msg, response.status, error.code);
+    throw new ApiError(error.message ?? 'Error desconocido', response.status, error.code);
   }
 
   if (response.status === 204) return undefined as T;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new ApiError('Respuesta inesperada del servidor. Inténtalo de nuevo.', response.status, 'INVALID_JSON');
+  }
+
   return response.json() as Promise<T>;
 }
 

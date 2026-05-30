@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import type { Category, Product } from '../types';
 import { CATEGORY_LABELS } from '../data/products';
-import { getProducts, getProductReviewStats } from '../api/products';
 import type { ProductReviewStats } from '../api/products';
+import { loadMenuData } from '../utils/loadMenu';
 import { ProductCard } from '../components/menu/ProductCard';
 import { ProductModal } from '../components/menu/ProductModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -35,12 +35,12 @@ export function MenuCategoryPage({ lockCategory, title, subtitle }: Props) {
   const loadMenu = useCallback(() => {
     setLoading(true);
     setError('');
-    Promise.all([getProducts(), getProductReviewStats()])
-      .then(([p, stats]) => {
+    loadMenuData()
+      .then(({ products: p, reviewStats: stats }) => {
         setProducts(p.filter((item) => item.category === lockCategory));
         setReviewStats(stats);
       })
-      .catch(() => setError('Error al cargar la carta'))
+      .catch(() => setError('No se pudo cargar la carta. Pulsa Reintentar.'))
       .finally(() => setLoading(false));
   }, [lockCategory]);
 

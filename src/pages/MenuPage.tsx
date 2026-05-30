@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Category, Product } from '../types';
 import { CATEGORY_LABELS, MENU_CATEGORIES } from '../data/products';
-import { getProducts, getProductReviewStats, getRecommendations } from '../api/products';
+import { getRecommendations } from '../api/products';
 import type { ProductReviewStats } from '../api/products';
+import { loadMenuData } from '../utils/loadMenu';
 import { ProductCard } from '../components/menu/ProductCard';
 import { ProductModal } from '../components/menu/ProductModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -57,12 +58,12 @@ export function MenuPage() {
     setLoading(true);
     setError('');
     const categoryArg = category && category !== 'all' ? category : undefined;
-    Promise.all([getProducts(categoryArg), getProductReviewStats()])
-      .then(([p, stats]) => {
+    loadMenuData(categoryArg)
+      .then(({ products: p, reviewStats: stats }) => {
         setProducts(p);
         setReviewStats(stats);
       })
-      .catch(() => setError('Error al cargar la carta'))
+      .catch(() => setError('No se pudo cargar la carta. Pulsa Reintentar.'))
       .finally(() => setLoading(false));
   };
 

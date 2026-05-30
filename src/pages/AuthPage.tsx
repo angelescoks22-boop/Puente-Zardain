@@ -11,6 +11,8 @@ import {
   EMPTY_DELIVERY_DETAILS,
   sanitizeDeliveryDetailsFields,
 } from '../utils/deliveryAddress';
+import { useAlertStore } from '../store/alertStore';
+import { AUTH_ERROR_TITLE, getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
 
 const RESEND_COOLDOWN = 60;
 
@@ -25,6 +27,7 @@ function OtpStep({
 }) {
   const { verifyCode, resendCode, error, clearError } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
+  const showAlert = useAlertStore((s) => s.alert);
   const [otp, setOtp] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -47,7 +50,9 @@ function OtpStep({
       showToast('¡Acceso confirmado!');
       onSuccess(role);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Error al verificar');
+      const msg = getAuthErrorMessage(err);
+      setLocalError(msg);
+      void showAlert(msg, AUTH_ERROR_TITLE);
     } finally {
       setLoading(false);
     }
@@ -103,6 +108,7 @@ export function AuthPage() {
   const navigate = useNavigate();
   const { sendCode, register, login, pendingEmail, error, clearError } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
+  const showAlert = useAlertStore((s) => s.alert);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [step, setStep] = useState<'form' | 'otp'>(() => (pendingEmail ? 'otp' : 'form'));
@@ -145,21 +151,31 @@ export function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!isValidEmailInput(trimmedEmail)) {
+      void showAlert(
+        'Revisa tu email: debe incluir @ y un dominio (por ejemplo .com).',
+        AUTH_ERROR_TITLE,
+      );
+      return;
+    }
     setLoading(true);
     setLocalError('');
     clearError();
     try {
       if (hasPassword) {
-        const role = await login(email.trim(), form.password, rememberMe);
+        const role = await login(trimmedEmail, form.password, rememberMe);
         showToast(role === 'admin' ? 'Panel técnico' : '¡Bienvenido!');
         navigate(role === 'admin' ? '/admin' : '/');
         return;
       }
-      await sendCode(email.trim());
+      await sendCode(trimmedEmail);
       setStep('otp');
       showToast('📧 Código enviado a tu correo');
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Error');
+      const msg = getAuthErrorMessage(err);
+      setLocalError('');
+      void showAlert(msg, AUTH_ERROR_TITLE);
     } finally {
       setLoading(false);
     }
@@ -167,8 +183,16 @@ export function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!isValidEmailInput(trimmedEmail)) {
+      void showAlert(
+        'Revisa tu email: debe incluir @ y un dominio (por ejemplo .com).',
+        AUTH_ERROR_TITLE,
+      );
+      return;
+    }
     if (!validatedAddress) {
-      setLocalError('Selecciona una dirección válida en Arroyomolinos');
+      void showAlert('Selecciona una dirección válida en Arroyomolinos', 'Dirección');
       return;
     }
     setLoading(true);
@@ -178,7 +202,7 @@ export function AuthPage() {
       const result = await register({
         name: form.name,
         phone: form.phone,
-        email: email.trim(),
+        email: trimmedEmail,
         ...(form.password.trim() ? { password: form.password } : {}),
         address: {
           ...validatedAddress,
@@ -192,7 +216,9 @@ export function AuthPage() {
           : '📧 Código enviado a tu correo',
       );
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Error');
+      const msg = getAuthErrorMessage(err);
+      setLocalError('');
+      void showAlert(msg, AUTH_ERROR_TITLE);
     } finally {
       setLoading(false);
     }
@@ -203,11 +229,11 @@ export function AuthPage() {
   return (
     <div className="page auth-page">
       <h1>{mode === 'register' ? '📝 Registro' : '👋 Entrar'}</h1>
-      <p className="hint auth-subtitle">
-        {mode === 'login'
-          ? 'Cliente: solo email y te mandamos un código. Admin: email + contraseña.'
-          : 'Crea tu cuenta y verifica tu email. Si ya te registraste, usa Entrar.'}
-      </p>
+      {mode === 'register' && (
+        <p className="hint auth-subtitle">
+          Crea tu cuenta y verifica tu email. Si ya te registraste, usa Entrar.
+        </p>
+      )}
 
       <div className="auth-tabs">
         <button
@@ -247,27 +273,17 @@ export function AuthPage() {
                 className="input"
                 type="password"
                 autoComplete="current-password"
-                placeholder="Solo si eres admin del local"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </label>
-            <p className="hint auth-admin-hint">
-              👤 Cliente: deja la contraseña vacía y pulsa «Enviar código».
-              <br />
-              🔐 Admin: escribe tu contraseña y pulsa «Entrar al panel».
-            </p>
             <label className="remember-row">
               <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
               Recuérdame
             </label>
             {displayError && <p className="form-error">{displayError}</p>}
             <Button fullWidth size="lg" disabled={loading}>
-              {loading
-                ? 'Un momento…'
-                : hasPassword
-                  ? 'Entrar al panel'
-                  : 'Enviar código'}
+              {loading ? 'Un momento…' : hasPassword ? 'Entrar' : 'Enviar código'}
             </Button>
           </form>
         )}
