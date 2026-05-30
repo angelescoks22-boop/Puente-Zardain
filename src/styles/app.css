@@ -1572,6 +1572,16 @@ input, textarea, button { font: inherit; }
 .birthday-banner-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .birthday-pending { color: var(--primary); font-weight: 600; font-size: 0.9rem; }
 
+.birthday-profile-card { margin-bottom: 16px; }
+.birthday-profile-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.birthday-profile-header h3 { margin: 0; }
+.birthday-profile-promo { margin: 0 0 12px; font-size: 0.95rem; color: var(--text-muted); }
+.birthday-profile-promo strong { color: var(--primary); }
+.birthday-profile-date { margin: 0 0 4px; font-size: 1.1rem; font-weight: 600; }
+.birthday-profile-today { margin: 8px 0 0; color: var(--primary); font-weight: 600; font-size: 0.9rem; }
+.birthday-profile-form label { display: block; margin-bottom: 8px; }
+.birthday-profile-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+
 /* Modo oscuro automático */
 @media (prefers-color-scheme: dark) {
   :root {

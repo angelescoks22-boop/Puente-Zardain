@@ -18,9 +18,9 @@ import { LevelCard } from '../components/gamification/LevelCard';
 
 import { ZardasWidget } from '../components/gamification/ZardasWidget';
 
-import { formatBirthdayDisplay } from '../utils/birthday';
-
 import { ProfileAvatar } from '../components/profile/ProfileAvatar';
+
+import { BirthdayProfileCard } from '../components/profile/BirthdayProfileCard';
 
 import { ProfileStyleCard } from '../components/profile/ProfileStyleCard';
 
@@ -60,7 +60,7 @@ export function ProfilePage() {
 
   const [editing, setEditing] = useState(false);
 
-  const [form, setForm] = useState({ name: '', phone: '', birthday: '' });
+  const [form, setForm] = useState({ name: '', phone: '' });
 
   const [error, setError] = useState('');
 
@@ -79,8 +79,6 @@ export function ProfilePage() {
       name: user.name,
 
       phone: user.phone,
-
-      birthday: user.birthday ?? '',
 
     });
 
@@ -234,6 +232,14 @@ export function ProfilePage() {
 
       <ZardasWidget user={user} />
 
+      <BirthdayProfileCard
+        user={user}
+        onSave={async (patch) => {
+          await updateProfile(patch);
+          showToast('Cumpleaños guardado 🎂');
+        }}
+      />
+
       <LevelCard level={user.level} orderCount={user.orderCount} />
 
 
@@ -274,24 +280,6 @@ export function ProfilePage() {
 
             </label>
 
-            <label>
-
-              Cumpleaños
-
-              <input
-
-                type="date"
-
-                className="input"
-
-                value={form.birthday}
-
-                onChange={(e) => setForm({ ...form, birthday: e.target.value })}
-
-              />
-
-            </label>
-
             {error && <p className="form-error">{error}</p>}
 
             <Button onClick={handleSave}>Guardar</Button>
@@ -309,14 +297,6 @@ export function ProfilePage() {
             <p>{user.email}</p>
 
             {user.address && <p>📍 {user.address}</p>}
-
-            {user.birthday && <p>🎂 {formatBirthdayDisplay(user.birthday)}</p>}
-
-            {user.birthdayFreeProductPending && (
-
-              <p className="birthday-pending">🎁 Tienes una bebida gratis pendiente</p>
-
-            )}
 
           </div>
 

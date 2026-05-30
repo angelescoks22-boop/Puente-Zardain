@@ -1,5 +1,8 @@
 /** Utilidades para recompensa de cumpleaños */
 
+export const BIRTHDAY_ZARDAS_REWARD = 50;
+export const BIRTHDAY_FREE_PRODUCT_LABEL = 'Bebida gratis';
+
 export function parseBirthday(value?: string | null): { month: number; day: number } | null {
   if (!value) return null;
   const datePart = value.includes('T') ? value.split('T')[0] : value;
