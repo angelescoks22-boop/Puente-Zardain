@@ -10,8 +10,48 @@ function getFromAddress(): string {
   return `"Puente Zardain" <${addr}>`;
 }
 
+function parseSender(from: string): { name: string; email: string } {
+  const match = from.match(/^"?([^"<]+)"?\s*<([^>]+)>$/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  return { name: 'Puente Zardain', email: from.replace(/[<>"]/g, '').trim() };
+}
+
+async function sendViaBrevoApi({ to, subject, text, html }: SendEmailInput): Promise<void> {
+  const apiKey = env.brevoApiKey;
+  if (!apiKey) throw new Error('BREVO_API_KEY no configurada');
+
+  const sender = parseSender(getFromAddress());
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: sender.name, email: sender.email },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Brevo API ${response.status}: ${body.slice(0, 200)}`);
+  }
+}
+
 function getTransporter() {
   if (transporter) return transporter;
+
+  const mailTimeouts = {
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  };
 
   if (env.smtpHost && env.smtpUser && env.smtpPass) {
     transporter = nodemailer.createTransport({
@@ -22,6 +62,7 @@ function getTransporter() {
         user: env.smtpUser,
         pass: env.smtpPass,
       },
+      ...mailTimeouts,
     });
     return transporter;
   }
@@ -33,6 +74,7 @@ function getTransporter() {
         user: env.emailUser,
         pass: env.emailPass,
       },
+      ...mailTimeouts,
     });
     return transporter;
   }
@@ -42,6 +84,7 @@ function getTransporter() {
 
 export function isEmailConfigured(): boolean {
   return Boolean(
+    env.brevoApiKey ||
     (env.smtpHost && env.smtpUser && env.smtpPass) ||
     (env.emailUser && env.emailPass),
   );
@@ -55,6 +98,11 @@ type SendEmailInput = {
 };
 
 export async function sendEmail({ to, subject, text, html }: SendEmailInput): Promise<void> {
+  if (env.brevoApiKey) {
+    await sendViaBrevoApi({ to, subject, text, html });
+    return;
+  }
+
   const mail = getTransporter();
 
   if (mail) {
@@ -73,24 +121,31 @@ export async function sendEmail({ to, subject, text, html }: SendEmailInput): Pr
     return;
   }
 
-  throw new Error('Email no configurado. Añade SMTP (Brevo) o Gmail en server/.env');
+  throw new Error('Email no configurado. Añade BREVO_API_KEY o SMTP en server/.env');
 }
 
 export async function sendEmailWithRetry(input: SendEmailInput): Promise<void> {
-  await retry(() => sendEmail(input));
+  await retry(() => sendEmail(input), 2, 600);
+}
+
+/** Envía OTP sin bloquear la petición HTTP (Render + Netlify tienen timeouts cortos). */
+export function queueOtpEmail(to: string, code: string): void {
+  void sendOtpEmail(to, code).catch((err) => {
+    console.error('[EMAIL] Error enviando OTP a', to, err);
+  });
 }
 
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
   await sendEmailWithRetry({
     to,
     subject: 'Tu código Puente Zardain',
-    text: `Tu código de verificación es: ${code}\n\nVálido 5 minutos. No lo compartas con nadie.`,
+    text: `Tu código de verificación es: ${code}\n\nVálido 15 minutos. No lo compartas con nadie.`,
     html: `
       <div style="font-family:Segoe UI,sans-serif;max-width:420px;margin:0 auto;padding:24px">
         <h2 style="color:#e85d04;margin:0 0 12px">🌉 Puente Zardain</h2>
         <p>Tu código de verificación es:</p>
         <p style="font-size:32px;font-weight:700;letter-spacing:8px;color:#1a1a1a">${code}</p>
-        <p style="color:#6b7280;font-size:14px">Válido 5 minutos. No lo compartas.</p>
+        <p style="color:#6b7280;font-size:14px">Válido 15 minutos. No lo compartas.</p>
       </div>
     `,
   });

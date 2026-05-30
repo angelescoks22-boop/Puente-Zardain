@@ -11,16 +11,16 @@ type AuthState = {
   pendingEmail: string | null;
   error: string | null;
   init: () => Promise<void>;
-  sendCode: (email: string) => Promise<void>;
+  sendCode: (email: string) => Promise<{ emailSent?: boolean }>;
   register: (data: {
     name: string;
     phone: string;
     email: string;
     password?: string;
     address: ValidatedAddress;
-  }) => Promise<{ existingAccount?: boolean }>;
-  verifyCode: (code: string, rememberMe?: boolean) => Promise<'client' | 'admin'>;
-  resendCode: () => Promise<void>;
+  }) => Promise<{ existingAccount?: boolean; emailSent?: boolean; message?: string }>;
+  verifyCode: (code: string, rememberMe?: boolean, email?: string) => Promise<'client' | 'admin'>;
+  resendCode: () => Promise<{ emailSent?: boolean }>;
   login: (identifier: string, password: string, rememberMe?: boolean) => Promise<'client' | 'admin'>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -64,9 +64,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sendCode: async (email) => {
     set({ error: null });
     const normalized = email.toLowerCase().trim();
-    await authApi.sendCode(normalized);
+    const result = await authApi.sendCode(normalized);
     setPendingEmail(normalized);
     set({ pendingEmail: normalized });
+    return result;
   },
 
   register: async (data) => {
@@ -74,13 +75,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const result = await authApi.register(data);
     setPendingEmail(result.email);
     set({ pendingEmail: result.email });
-    return { existingAccount: result.existingAccount };
+    return {
+      existingAccount: result.existingAccount,
+      emailSent: result.emailSent,
+      message: result.message,
+    };
   },
 
-  verifyCode: async (code, rememberMe = true) => {
-    const email = get().pendingEmail ?? getPendingEmail();
+  verifyCode: async (code, rememberMe = true, emailOverride) => {
+    const email = (emailOverride ?? get().pendingEmail ?? getPendingEmail())?.toLowerCase().trim();
     if (!email) throw new Error('Sin verificación pendiente. Vuelve atrás e introduce tu email.');
-    set({ error: null });
+    set({ error: null, pendingEmail: email });
+    setPendingEmail(email);
     const normalizedCode = code.replace(/\D/g, '').slice(0, 6);
     const { user, role } = await authApi.verifyCode(email, normalizedCode, rememberMe);
     setPendingEmail(null);
@@ -91,11 +97,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   resendCode: async () => {
     const email = get().pendingEmail ?? getPendingEmail();
     if (!email) throw new Error('Sin email pendiente');
-    try {
-      await authApi.resendCode(email);
-    } catch {
-      await authApi.sendCode(email);
-    }
+    return authApi.resendCode(email);
   },
 
   login: async (identifier, password, rememberMe = false) => {

@@ -816,6 +816,12 @@ input, textarea, button { font: inherit; }
   margin-bottom: 8px;
 }
 
+.auth-otp-step-label {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: var(--primary);
+}
+
 .auth-otp-actions {
   display: flex;
   flex-wrap: wrap;

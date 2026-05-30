@@ -4,6 +4,7 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import { connectDB } from './config/db.js';
 import { env, getClientOrigins } from './config/env.js';
+import { isEmailConfigured } from './services/email.service.js';
 import { seedDatabase } from './utils/seed.js';
 import authRoutes from './routes/auth.routes.js';
 import productsRoutes from './routes/products.routes.js';
@@ -50,7 +51,16 @@ app.use(
 );
 app.use(express.json());
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'Puente Zardain API' }));
+app.get('/api/health', (_req, res) =>
+  res.json({
+    ok: true,
+    service: 'Puente Zardain API',
+    email: {
+      configured: isEmailConfigured(),
+      provider: process.env.BREVO_API_KEY ? 'brevo-api' : process.env.SMTP_HOST ? 'smtp' : 'none',
+    },
+  }),
+);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productsRoutes);

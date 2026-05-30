@@ -16,14 +16,23 @@ import { getAuthErrorMessage, isValidEmailInput } from '../utils/authErrors';
 
 const RESEND_COOLDOWN = 60;
 
+function otpDeliveryMessage(emailSent?: boolean) {
+  if (emailSent === false) {
+    return 'No pudimos enviar el correo. Revisa la dirección o contacta con el local.';
+  }
+  return 'Revisa bandeja y carpeta de spam (puede tardar 1–2 min). Caduca en 15 min.';
+}
+
 function OtpStep({
   email,
   onBack,
   onSuccess,
+  emailSent,
 }: {
   email: string;
   onBack: () => void;
   onSuccess: (role: 'client' | 'admin') => void;
+  emailSent?: boolean;
 }) {
   const { verifyCode, resendCode, error, clearError } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
@@ -49,7 +58,7 @@ function OtpStep({
     setLocalError('');
     clearError();
     try {
-      const role = await verifyCode(otp, rememberMe);
+      const role = await verifyCode(otp, rememberMe, email);
       showToast('¡Acceso confirmado!');
       onSuccess(role);
     } catch (err) {
@@ -64,9 +73,13 @@ function OtpStep({
     setLocalError('');
     clearError();
     try {
-      await resendCode();
+      const result = await resendCode();
       setCooldown(RESEND_COOLDOWN);
-      showToast('📧 Nuevo código enviado');
+      showToast(
+        result.emailSent === false
+          ? 'No se pudo enviar el correo — contacta con el local'
+          : '📧 Nuevo código enviado',
+      );
     } catch (err) {
       setLocalError(getAuthErrorMessage(err));
     }
@@ -78,10 +91,13 @@ function OtpStep({
     <div className="page auth-page auth-page--otp">
       <h1>📧 Verifica tu email</h1>
       <Card className="auth-card-enter">
+        <p className="auth-otp-step-label"><strong>Paso 2 de 2</strong> — tu cuenta se crea al confirmar el código</p>
         <p className="auth-email-sent">
           📧 Código enviado a <strong>{email}</strong>
         </p>
-        <p className="hint">Revisa bandeja y spam. Caduca en 5 minutos.</p>
+        <p className={`hint${emailSent === false ? ' form-error' : ''}`}>
+          {otpDeliveryMessage(emailSent)}
+        </p>
         <form onSubmit={handleVerify}>
           <OtpInput value={otp} onChange={setOtp} disabled={loading} />
           {displayError && <p className="form-error">{displayError}</p>}
@@ -116,6 +132,7 @@ export function AuthPage() {
     error,
     clearError,
     clearPendingVerification,
+    isAuthenticated,
   } = useAuthStore();
   const showToast = useAppStore((s) => s.showToast);
 
@@ -128,6 +145,7 @@ export function AuthPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [otpEmailSent, setOtpEmailSent] = useState<boolean | undefined>(true);
 
   const activeEmail = (pendingEmail ?? email).trim();
   const hasPassword = form.password.trim().length > 0;
@@ -136,12 +154,22 @@ export function AuthPage() {
     if (pendingEmail && !email) setEmail(pendingEmail);
   }, [pendingEmail, email]);
 
+  useEffect(() => {
+    if (pendingEmail && !isAuthenticated && step === 'form') {
+      setStep('otp');
+    }
+  }, [pendingEmail, isAuthenticated, step]);
+
   const goHome = (role: 'client' | 'admin') => {
     navigate(role === 'admin' ? '/admin' : '/');
   };
 
-  const goToOtp = (targetEmail: string) => {
-    setEmail(targetEmail);
+  const goToOtp = (targetEmail: string, emailSent?: boolean) => {
+    const normalized = targetEmail.toLowerCase().trim();
+    setPendingEmail(normalized);
+    useAuthStore.setState({ pendingEmail: normalized });
+    setEmail(normalized);
+    setOtpEmailSent(emailSent);
     setStep('otp');
   };
 
@@ -156,6 +184,7 @@ export function AuthPage() {
     return (
       <OtpStep
         email={activeEmail}
+        emailSent={otpEmailSent}
         onBack={handleBackFromOtp}
         onSuccess={goHome}
       />
@@ -179,14 +208,18 @@ export function AuthPage() {
         navigate(role === 'admin' ? '/admin' : '/');
         return;
       }
-      await sendCode(trimmedEmail);
-      goToOtp(trimmedEmail);
-      showToast('📧 Código enviado a tu correo');
+      const sendResult = await sendCode(trimmedEmail);
+      goToOtp(trimmedEmail, sendResult.emailSent);
+      showToast(
+        sendResult.emailSent === false
+          ? 'Problema al enviar el correo'
+          : '📧 Código enviado a tu correo',
+      );
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
         setPendingEmail(trimmedEmail);
         useAuthStore.setState({ pendingEmail: trimmedEmail });
-        goToOtp(trimmedEmail);
+        goToOtp(trimmedEmail, true);
         showToast('📧 Te hemos enviado un código de verificación');
         return;
       }
@@ -238,11 +271,13 @@ export function AuthPage() {
           ...extras,
         },
       });
-      goToOtp(trimmedEmail);
+      goToOtp(trimmedEmail, result.emailSent);
       showToast(
-        result.existingAccount
-          ? 'Ya tienes cuenta — te enviamos un código para entrar'
-          : '📧 Código enviado a tu correo',
+        result.emailSent === false
+          ? 'Problema al enviar el correo — prueba reenviar en un minuto'
+          : result.existingAccount
+            ? 'Ya tienes cuenta — te enviamos un código para entrar'
+            : '📧 Código enviado a tu correo',
       );
     } catch (err) {
       setLocalError(getAuthErrorMessage(err));
@@ -387,7 +422,7 @@ export function AuthPage() {
                 ✅ Dirección lista — puedes crear la cuenta
               </p>
             )}
-            <p className="hint">Verificaremos tu email con un código de 6 dígitos.</p>
+            <p className="hint">Paso 1 de 2: al pulsar crear cuenta te enviamos un código de 6 dígitos por email.</p>
             {displayError && <p className="form-error">{displayError}</p>}
             <Button fullWidth size="lg" type="submit" disabled={loading}>
               {loading ? 'Un momento…' : 'Crear cuenta (+25 Zardas)'}

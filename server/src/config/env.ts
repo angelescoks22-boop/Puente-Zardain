@@ -15,12 +15,15 @@ export const env = {
   clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5173',
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   emailPass: process.env.EMAIL_PASS ?? '',
+  emailUser: process.env.EMAIL_USER ?? '',
   /** SMTP genérico (recomendado: Brevo gratis). Si está definido, tiene prioridad sobre Gmail. */
   smtpHost: process.env.SMTP_HOST ?? '',
   smtpPort: Number(process.env.SMTP_PORT ?? 587),
   smtpUser: process.env.SMTP_USER ?? '',
   smtpPass: process.env.SMTP_PASS ?? '',
   emailFrom: process.env.EMAIL_FROM ?? '',
+  /** API REST de Brevo (más fiable que SMTP en Render). Crear en Brevo → SMTP & API → API Keys */
+  brevoApiKey: process.env.BREVO_API_KEY ?? '',
   deliveryRadiusKm: Number(process.env.DELIVERY_RADIUS_KM ?? 5),
   restaurantLat: Number(process.env.RESTAURANT_LAT ?? 40.3019),
   restaurantLng: Number(process.env.RESTAURANT_LNG ?? -3.8736),

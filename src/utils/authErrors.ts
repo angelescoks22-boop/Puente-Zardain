@@ -12,6 +12,9 @@ export function getAuthErrorMessage(err: unknown): string {
     if (err.code === 'NO_ACCOUNT') {
       return 'No hay cuenta con este email. Ve a Registrarse para crear una.';
     }
+    if (err.code === 'NO_PENDING') {
+      return 'Tu registro expiró. Vuelve atrás y crea la cuenta de nuevo.';
+    }
     if (err.status === 401) {
       return 'Email o contraseña incorrectos. Revísalos e inténtalo de nuevo.';
     }

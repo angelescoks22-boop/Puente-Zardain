@@ -15,7 +15,7 @@ import {
 } from '../schemas/auth.schema.js';
 import { ZARDAS_REGISTER, ZARDAS_BIRTHDAY, BIRTHDAY_FREE_PRODUCT } from '../utils/gamification.js';
 import { validateAddressServer, fetchAddressSuggestions } from '../services/geocode.service.js';
-import { sendOtpEmail, isEmailConfigured } from '../services/email.service.js';
+import { queueOtpEmail, isEmailConfigured } from '../services/email.service.js';
 import type { AddressPayload } from '../utils/addressValidation.js';
 
 function syncLegacyAddress(user: IUser) {
@@ -30,7 +30,7 @@ function isBirthdayToday(birthday?: Date | null, now = new Date()) {
 
 const router = Router();
 
-const OTP_TTL_MS = 5 * 60 * 1000;
+const OTP_TTL_MS = 15 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 
 function generateOtp() {
@@ -45,18 +45,16 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-async function dispatchOtpEmail(email: string, otp: string) {
-  try {
-    await sendOtpEmail(email, otp);
-  } catch (err) {
-    console.error('[EMAIL] Error enviando OTP:', err);
+function dispatchOtpEmail(email: string, otp: string) {
+  if (!isEmailConfigured()) {
     if (process.env.NODE_ENV !== 'production') {
-      console.info(`[EMAIL dev fallback] To: ${email} | Código: ${otp}`);
+      console.info(`[EMAIL dev] To: ${email} | Código: ${otp}`);
+    } else {
+      console.error('[EMAIL] SMTP no configurado en producción — OTP no enviado a', email);
     }
-    if (process.env.NODE_ENV === 'production' && isEmailConfigured()) {
-      throw err;
-    }
+    return;
   }
+  queueOtpEmail(email, otp);
 }
 
 async function createAndSendOtp(
@@ -71,7 +69,7 @@ async function createAndSendOtp(
     expiresAt: new Date(Date.now() + OTP_TTL_MS),
     ...extra,
   });
-  await dispatchOtpEmail(email, otp);
+  dispatchOtpEmail(email, otp);
   return otp;
 }
 
@@ -165,7 +163,17 @@ async function completeEmailVerification(
       userData.address = pendingAddr.fullAddress;
       userData.addresses = [{ ...pendingAddr, id: crypto.randomUUID(), isDefault: true, label: 'Casa' }];
     }
-    user = await usersRepo.create(userData);
+    try {
+      user = await usersRepo.create(userData);
+    } catch (err) {
+      const pgCode = (err as { code?: string }).code;
+      if (pgCode === '23505') {
+        user = await usersRepo.findOneByEmail(email);
+        if (!user) throw err;
+      } else {
+        throw err;
+      }
+    }
   } else if (!user) {
     const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10);
     user = await usersRepo.create({
@@ -284,8 +292,15 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
     pendingAddress: addressCheck.address,
   });
 
-  await dispatchOtpEmail(normalizedEmail, otp);
-  res.json({ needsOtp: true, email: normalizedEmail, emailSent: isEmailConfigured() });
+  dispatchOtpEmail(normalizedEmail, otp);
+  res.json({
+    needsOtp: true,
+    email: normalizedEmail,
+    emailSent: isEmailConfigured(),
+    message: isEmailConfigured()
+      ? 'Te enviamos un código a tu correo. Revisa también spam.'
+      : 'El correo no está configurado en el servidor. Contacta con el local.',
+  });
 });
 
 router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
@@ -293,8 +308,10 @@ router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
   const pending = await pendingOtpsRepo.findByEmail(email);
 
   if (!pending) {
-    await createAndSendOtp(email);
-    return res.json({ ok: true, emailSent: isEmailConfigured() });
+    return res.status(404).json({
+      message: 'No hay registro pendiente. Vuelve a crear la cuenta.',
+      code: 'NO_PENDING',
+    });
   }
 
   await createAndSendOtp(email, {
@@ -309,7 +326,19 @@ router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
 router.post('/login', validateBody(loginSchema), async (req, res) => {
   const { password, rememberMe = false } = req.body;
   const identifier = String(req.body.identifier ?? '').trim().toLowerCase();
-  const user = await usersRepo.findOneByIdentifier(identifier);
+  let user = await usersRepo.findOneByIdentifier(identifier);
+
+  if (!user && isValidEmail(identifier)) {
+    const pending = await pendingOtpsRepo.findByEmail(identifier);
+    if (pending && new Date() <= pending.expiresAt) {
+      dispatchOtpEmail(identifier, pending.otp);
+      return res.status(403).json({
+        message: 'Tu cuenta aún no está activa. Confirma el código que te enviamos por email.',
+        code: 'EMAIL_NOT_VERIFIED',
+        email: identifier,
+      });
+    }
+  }
 
   if (!user) return res.status(401).json({ message: 'Credenciales incorrectas' });
   if (user.isBlocked || user.clientStatus === 'blocked') {

@@ -10,7 +10,7 @@ type RegisterData = {
   address: ValidatedAddress;
 };
 
-export async function sendCode(email: string): Promise<{ ok: true; email: string }> {
+export async function sendCode(email: string): Promise<{ ok: true; email: string; emailSent?: boolean }> {
   return apiFetch('/auth/send-code', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
@@ -33,12 +33,13 @@ export async function register(data: RegisterData): Promise<{
   email: string;
   existingAccount?: boolean;
   message?: string;
+  emailSent?: boolean;
 }> {
   return apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function resendCode(email: string): Promise<void> {
-  await apiFetch('/auth/resend-otp', { method: 'POST', body: JSON.stringify({ email }) });
+export async function resendCode(email: string): Promise<{ ok?: true; emailSent?: boolean }> {
+  return apiFetch('/auth/resend-otp', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
 export async function login(
