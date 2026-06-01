@@ -64,9 +64,9 @@ function AppInit() {
       window.setTimeout(() => splash.remove(), 450);
     };
 
-    init()
-      .catch(() => {})
-      .finally(hideSplash);
+    // Mostrar la app al instante; la sesión carga en segundo plano
+    hideSplash();
+    void init().catch(() => {});
     ensureAppSocket();
     const stopMessagesSync = startBusinessMessagesSync();
     const stopSettingsSync = startSettingsSync();

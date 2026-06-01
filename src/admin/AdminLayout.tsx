@@ -1,6 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
 import { onSettingsUpdate } from '../api/chatSocket';
 import { useEffect, useState } from 'react';
 import { adminApi, BUSINESS_STATUS_LABELS, type BusinessStatus } from './api/adminApi';
@@ -25,15 +24,13 @@ const NAV = [
   { to: '/admin/settings', icon: '⚙️', label: 'Config' },
 ];
 
-/** El panel técnico siempre en modo claro; el modo oscuro es solo para la web cliente. */
+/** Panel admin siempre en modo claro. */
 function useAdminLightMode() {
   useEffect(() => {
     document.documentElement.classList.remove('dark', 'admin-dark');
     document.documentElement.classList.add('admin-light');
     return () => {
       document.documentElement.classList.remove('admin-light');
-      const dark = useThemeStore.getState().darkMode;
-      document.documentElement.classList.toggle('dark', dark);
     };
   }, []);
 }

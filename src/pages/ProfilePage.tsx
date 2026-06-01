@@ -8,8 +8,6 @@ import { useOrderStore } from '../store/orderStore';
 
 import { useAppStore } from '../store/appStore';
 
-import { useThemeStore } from '../store/themeStore';
-
 import { Button } from '../components/ui/Button';
 
 import { Card } from '../components/ui/Card';
@@ -51,12 +49,6 @@ export function ProfilePage() {
   const loadFavorites = useAppStore((s) => s.loadFavorites);
 
   const showToast = useAppStore((s) => s.showToast);
-
-  const darkMode = useThemeStore((s) => s.darkMode);
-
-  const toggleDarkMode = useThemeStore((s) => s.toggleDarkMode);
-
-
 
   const [editing, setEditing] = useState(false);
 
@@ -357,22 +349,6 @@ export function ProfilePage() {
           </div>
 
         </div>
-
-      </Card>
-
-
-
-      <Card>
-
-        <h3>🌙 Apariencia</h3>
-
-        <p className="hint">Activa el modo oscuro para una experiencia más cómoda de noche.</p>
-
-        <Button variant="secondary" fullWidth onClick={toggleDarkMode}>
-
-          {darkMode ? '☀️ Modo claro' : '🌙 Modo oscuro'}
-
-        </Button>
 
       </Card>
 
