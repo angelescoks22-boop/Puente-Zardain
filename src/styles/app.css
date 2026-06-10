@@ -44,7 +44,6 @@
 body {
   margin: 0;
   background: var(--bg);
-  overscroll-behavior: none;
   overflow-x: hidden;
 }
 
@@ -169,7 +168,6 @@ input, textarea, button { font: inherit; }
 .app-main {
   flex: 1;
   padding: 16px 16px calc(var(--nav-height) + var(--safe-bottom) + 72px);
-  overflow-y: auto;
 }
 
 .page { animation: fadeIn 0.25s ease; }
