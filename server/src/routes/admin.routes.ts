@@ -12,7 +12,7 @@ import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { assertValidStatusTransition } from '../utils/gamification.js';
 import { buildAdminDashboard, isOrderDelayed, orderElapsedMinutes } from '../services/adminDashboard.service.js';
 import { notifyAdminDashboard, notifyOrderUpdate, notifyBusinessMessagesUpdate } from '../services/adminNotify.js';
-import { toggleOrdersOpen, setBusinessStatus } from '../services/settings.service.js';
+import { toggleOrdersOpen, setBusinessStatus, broadcastSettingsUpdate } from '../services/settings.service.js';
 import { getEffectivePrepMinutes, runMaintenanceJobs } from '../services/adminJobs.service.js';
 import { getSystemHealth, getRecentSystemLogs } from '../services/systemMonitor.service.js';
 import { sendAutoChatForOrderStatus } from '../services/autoChat.service.js';
@@ -70,7 +70,7 @@ function formatAdminOrder(order: IOrder, prepLimit?: number) {
   };
 }
 
-const CANCELLABLE_STATUSES = ['pending'];
+const CANCELLABLE_STATUSES = ['pending', 'accepted'];
 const NON_CANCELLABLE_STATUSES = ['preparing', 'ready', 'on_the_way', 'delivered', 'cancelled'];
 
 router.get('/dashboard', async (_req, res) => {
@@ -238,24 +238,16 @@ router.patch('/orders/:id/status', async (req: AuthRequest, res) => {
   if (status === 'delivered') {
     order.completedAt = new Date();
     order.pickedUp = true;
-    const user = await usersRepo.findById(order.userId);
-    const settings = await settingsRepo.getSingleton();
-    if (user) {
-      const { getLevelForOrders, getZardasBonus, ZARDAS_PER_ORDER } = await import('../utils/gamification.js');
-      const multiplier = settings?.promo?.active ? (settings.promo.zardasMultiplier ?? 1) : 1;
-      const base = ZARDAS_PER_ORDER + getZardasBonus(user.level);
-      user.zardas += Math.round(base * multiplier);
-      user.orderCount += 1;
-      const { level, progress } = getLevelForOrders(user.orderCount);
-      user.level = level as typeof user.level;
-      user.levelProgress = progress;
-      await usersRepo.save(user);
-    }
   }
   if (['preparing', 'ready'].includes(status)) {
     order.queuePosition = await ordersRepo.countAheadInQueue(order.createdAt);
   }
   await ordersRepo.save(order);
+
+  if (status === 'delivered') {
+    const { grantOrderCompletionRewards } = await import('../services/orderRewards.service.js');
+    await grantOrderCompletionRewards(order);
+  }
 
   if (fromStatus !== status) {
     await orderStatusLogsRepo.logOrderStatusChange({
@@ -351,8 +343,13 @@ router.get('/customers/:id', async (req, res) => {
   });
 });
 
+const CLIENT_STATUSES = ['normal', 'reliable', 'problematic', 'blocked'] as const;
+
 router.patch('/customers/:id/status', async (req, res) => {
   const { clientStatus } = req.body;
+  if (!CLIENT_STATUSES.includes(clientStatus)) {
+    return res.status(400).json({ message: 'Estado de cliente no válido' });
+  }
   const user = await usersRepo.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'Cliente no encontrado' });
   user.clientStatus = clientStatus;
@@ -365,8 +362,8 @@ router.patch('/customers/:id/zardas', async (req, res) => {
   const { zardas, delta } = req.body;
   const user = await usersRepo.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'Cliente no encontrado' });
-  if (typeof zardas === 'number') user.zardas = zardas;
-  if (typeof delta === 'number') user.zardas += delta;
+  if (typeof zardas === 'number') user.zardas = Math.max(0, zardas);
+  if (typeof delta === 'number') user.zardas = Math.max(0, user.zardas + delta);
   await usersRepo.save(user);
   res.json({ zardas: user.zardas });
 });
@@ -476,8 +473,11 @@ router.put('/products/:id', async (req, res) => {
 });
 
 router.delete('/products/:id', async (req, res) => {
-  await productsRepo.softDelete(req.params.id);
-  res.json({ ok: true });
+  const id = paramStr(req.params.id);
+  const hard = req.query.hard === '1' || req.query.hard === 'true';
+  const ok = hard ? await productsRepo.deleteById(id) : await productsRepo.softDelete(id);
+  if (!ok) return res.status(404).json({ message: 'Producto no encontrado' });
+  res.json({ ok: true, hard });
 });
 
 router.get('/rewards', async (_req, res) => {
@@ -523,6 +523,8 @@ router.get('/settings', async (_req, res) => {
 
 router.put('/settings', async (req, res) => {
   const settings = await settingsRepo.mergeUpdate(req.body);
+  await broadcastSettingsUpdate();
+  notifyAdminDashboard();
   res.json(settings);
 });
 
@@ -531,6 +533,7 @@ router.post('/settings/toggle-promo', async (_req, res) => {
   if (!settings.promo) settings.promo = { active: false, zardasMultiplier: 2, label: 'Doble Zardas hoy' };
   settings.promo.active = !settings.promo.active;
   await settingsRepo.save(settings);
+  await broadcastSettingsUpdate();
   notifyAdminDashboard();
   res.json({ promo: settings.promo });
 });
@@ -559,6 +562,7 @@ router.post('/settings/prep-time', async (req, res) => {
   const settings = await settingsRepo.getOrCreate();
   settings.prepTimeMinutes = prepTimeMinutes;
   await settingsRepo.save(settings);
+  await broadcastSettingsUpdate();
   notifyAdminDashboard();
   res.json({ prepTimeMinutes: settings.prepTimeMinutes });
 });
@@ -621,11 +625,36 @@ router.get('/messages', async (_req, res) => {
 });
 
 router.post('/messages', async (req, res) => {
+  const type = ['info', 'warning', 'promo'].includes(req.body.type) ? req.body.type : 'info';
+
+  if (Array.isArray(req.body.messages)) {
+    const items = (req.body.messages as { text?: string; type?: string; active?: boolean }[])
+      .map((m) => ({
+        text: String(m.text ?? '').trim(),
+        type: ['info', 'warning', 'promo'].includes(m.type ?? '') ? m.type : type,
+        active: m.active !== false,
+      }))
+      .filter((m) => m.text.length > 0);
+    if (!items.length) {
+      return res.status(400).json({ message: 'Añade al menos un mensaje con texto' });
+    }
+    const created = await businessMessagesRepo.createMany(items);
+    notifyBusinessMessagesUpdate();
+    return res.status(201).json(
+      created.map((msg) => ({
+        id: msg.id,
+        text: msg.text,
+        type: msg.type,
+        active: msg.active,
+        createdAt: msg.createdAt?.toISOString(),
+      })),
+    );
+  }
+
   const text = String(req.body.text ?? '').trim();
   if (!text) {
     return res.status(400).json({ message: 'Escribe el texto del mensaje' });
   }
-  const type = ['info', 'warning', 'promo'].includes(req.body.type) ? req.body.type : 'info';
   const msg = await businessMessagesRepo.create({ text, type, active: req.body.active !== false });
   notifyBusinessMessagesUpdate();
   res.status(201).json({

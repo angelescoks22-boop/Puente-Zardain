@@ -1,4 +1,5 @@
 import type { CartItem, Order, Product, User, Category } from '../types';
+import { getCategoryEmoji } from '../data/products';
 import {
   analyzeUserHabits,
   getCategoriesForNow,
@@ -42,6 +43,22 @@ function pickFromHistory(products: Product[], topIds: string[], exclude: Set<str
   return null;
 }
 
+export function recommendationFromProduct(product: Product, reason: string): SmartRecommendation {
+  const emoji =
+    product.category === 'montados' || product.category === 'tostas'
+      ? getCategoryEmoji(product.category)
+      : product.image || getCategoryEmoji(product.category);
+
+  return {
+    id: `pick-${product.id}`,
+    title: product.name,
+    reason,
+    products: [product],
+    totalPrice: product.price,
+    emoji,
+  };
+}
+
 export function getSmartRecommendation(
   products: Product[],
   user: User | null,
@@ -66,7 +83,8 @@ export function getSmartRecommendation(
     const mainCat = habits.favoriteCategory ?? categories[0] ?? 'hamburguesas';
     const main = pickFromCategory(products, mainCat, used)
       ?? products.find((p) => categories.includes(p.category) && !used.has(p.id))
-      ?? products.find((p) => p.popular);
+      ?? products.find((p) => p.popular)
+      ?? products.find((p) => !used.has(p.id));
     if (main) {
       bundle.push(main);
       used.add(main.id);
@@ -104,9 +122,9 @@ export function getSmartRecommendation(
   }
 
   const emoji =
-    main.category === 'bocadillos' || main.category === 'montados' ? '🥪' :
-    main.category === 'hamburguesas' ? '🍔' :
-    main.category === 'bebidas' ? '🥤' : '🍽️';
+    main.category === 'montados' || main.category === 'tostas'
+      ? getCategoryEmoji(main.category)
+      : main.image || getCategoryEmoji(main.category);
 
   return {
     id: `rec-${bundle.map((p) => p.id).join('-')}`,

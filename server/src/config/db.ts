@@ -14,15 +14,29 @@ export function getPool() {
       connectionString: env.databaseUrl,
       ssl: env.databaseUrl.includes('supabase.com') ? { rejectUnauthorized: false } : undefined,
       max: 10,
+      connectionTimeoutMillis: 15_000,
+      idleTimeoutMillis: 30_000,
     });
   }
   return pool;
 }
 
 export async function connectDB() {
-  const client = getPool();
-  await client.query('SELECT 1');
-  console.log('✅ PostgreSQL (Supabase) conectado');
+  if (!env.databaseUrl) {
+    throw new Error(
+      'DATABASE_URL no configurada. Crea server/.env (copia de server/.env.example) con tu conexión Supabase.',
+    );
+  }
+  try {
+    const client = getPool();
+    await client.query('SELECT 1');
+    console.log('✅ PostgreSQL (Supabase) conectado');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `No se pudo conectar a PostgreSQL (${msg}). Revisa DATABASE_URL en server/.env y tu conexión a internet.`,
+    );
+  }
 }
 
 export async function disconnectDB() {

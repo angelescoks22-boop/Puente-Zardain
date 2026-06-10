@@ -36,6 +36,20 @@ export function AdminRewardsPage() {
     }
   };
 
+  const toggleActive = async (reward: AdminReward) => {
+    try {
+      const { id, ...data } = reward;
+      await adminApi.saveReward({ ...data, active: !reward.active }, id);
+      setFeedback({
+        type: 'ok',
+        message: reward.active ? `"${reward.name}" desactivada` : `"${reward.name}" activada`,
+      });
+      refresh();
+    } catch {
+      setFeedback({ type: 'error', message: 'Error al actualizar la recompensa' });
+    }
+  };
+
   const handleDelete = async (reward: AdminReward) => {
     const confirmed = await confirm(
       `¿Seguro que quieres eliminar "${reward.name}"? Esta acción no se puede deshacer.`,
@@ -107,6 +121,9 @@ export function AdminRewardsPage() {
             <p>{r.description}</p>
             <strong>💎 {r.zardasCost}</strong>
             <p>{r.active ? '✅ Activa' : '❌ Inactiva'}</p>
+            <button type="button" className="status-btn" onClick={() => toggleActive(r)}>
+              {r.active ? 'Desactivar' : 'Activar'}
+            </button>
             <button
               type="button"
               className="status-btn cancel-btn"

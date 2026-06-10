@@ -25,3 +25,19 @@ export const MENU_CATEGORIES: Category[] = [
 
 export const MONTADOS_CATEGORY: Category = 'montados';
 export const BOCADILLOS_CATEGORY: Category = 'bocadillos';
+
+/** Emoji por categoría — montado ≠ bocadillo ≠ sándwich */
+export const CATEGORY_EMOJI: Record<Category, string> = {
+  raciones: '🍽️',
+  hamburguesas: '🍔',
+  montados: '🍞',
+  bocadillos: '🥖',
+  tostas: '🫓',
+  sandwiches: '🥪',
+  ensaladas: '🥗',
+  bebidas: '🥤',
+};
+
+export function getCategoryEmoji(category: Category): string {
+  return CATEGORY_EMOJI[category] ?? '🍽️';
+}

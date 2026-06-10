@@ -78,6 +78,15 @@ export type CreateOrderInput = {
   estimatedTimeMinutes?: number;
 };
 
+export async function countActiveForUser(userId: string): Promise<number> {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS count FROM orders
+     WHERE user_id = $1 AND status NOT IN ('delivered', 'cancelled')`,
+    [userId],
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
 export async function findById(id: string): Promise<IOrder | null> {
   const { rows } = await query('SELECT * FROM orders WHERE id = $1', [id]);
   return rows[0] ? mapOrderRow(rows[0]) : null;
@@ -168,6 +177,17 @@ export async function save(order: IOrder): Promise<IOrder> {
     ],
   );
   return mapOrderRow(rows[0]);
+}
+
+/** Marca recompensas como otorgadas solo si aún no lo estaban (operación atómica). */
+export async function claimRewardsGranted(orderId: string): Promise<boolean> {
+  const { rows } = await query(
+    `UPDATE orders SET rewards_granted = true, updated_at = now()
+     WHERE id = $1 AND COALESCE(rewards_granted, false) = false
+     RETURNING id`,
+    [orderId],
+  );
+  return rows.length > 0;
 }
 
 export async function updateById(

@@ -68,7 +68,7 @@ export function MenuCategoryPage({ lockCategory, title, subtitle }: Props) {
 
       <div className="menu-category-links">
         <Link to="/montados" className={lockCategory === 'montados' ? 'active' : ''}>
-          🥪 {CATEGORY_LABELS.montados}
+          🍞 {CATEGORY_LABELS.montados}
         </Link>
         <Link to="/bocadillos" className={lockCategory === 'bocadillos' ? 'active' : ''}>
           🥖 {CATEGORY_LABELS.bocadillos}

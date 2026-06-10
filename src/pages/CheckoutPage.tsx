@@ -20,7 +20,7 @@ import { TrustBadges } from '../components/ui/TrustBadges';
 
 import { CheckoutOrderSummary } from '../components/checkout/CheckoutOrderSummary';
 
-import { getQueueEstimate } from '../api/products';
+import { getQueueEstimate, getPendingRedemptions } from '../api/products';
 
 import type { QueueEstimate } from '../utils/estimateTime';
 
@@ -28,6 +28,7 @@ import { useSettingsStore, isStoreOpen, isStoreSaturated } from '../store/settin
 import type { OrderType, PaymentMethod, ValidatedAddress } from '../types';
 import { formatPrice } from '../utils/format';
 import { ApiError } from '../api/client';
+import { getCurrentUser } from '../api/auth';
 import {
   EMPTY_DELIVERY_DETAILS,
   pickDeliveryDetails,
@@ -47,6 +48,8 @@ export function CheckoutPage() {
   const items = useCartStore((s) => s.items);
 
   const total = useCartStore((s) => s.total());
+  const meetsMinimum = useCartStore((s) => s.meetsMinimum());
+  const remainingForMinimum = useCartStore((s) => s.remainingForMinimum());
 
   const clearCart = useCartStore((s) => s.clearCart);
 
@@ -103,45 +106,59 @@ export function CheckoutPage() {
   );
 
   const [queueEstimate, setQueueEstimate] = useState<QueueEstimate | null>(null);
+  const [queueError, setQueueError] = useState(false);
+  const [pendingRedemptions, setPendingRedemptions] = useState<
+    { id: string; rewardName: string }[]
+  >([]);
+  const [selectedRedemptionId, setSelectedRedemptionId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
 
   const [error, setError] = useState('');
 
-
+  useEffect(() => {
+    if (!defaultSaved) return;
+    setValidatedAddress({
+      fullAddress: defaultSaved.fullAddress,
+      city: defaultSaved.city,
+      lat: defaultSaved.lat,
+      lng: defaultSaved.lng,
+      placeId: defaultSaved.placeId,
+    });
+    setDeliveryDetails(pickDeliveryDetails(defaultSaved));
+  }, [defaultSaved]);
 
   useEffect(() => {
-
-    getQueueEstimate().then(setQueueEstimate).catch(() => {});
-
-    const interval = setInterval(() => {
-
-      getQueueEstimate().then(setQueueEstimate).catch(() => {});
-
-    }, 45000);
-
+    const loadQueue = () => {
+      getQueueEstimate()
+        .then((q) => {
+          setQueueEstimate(q);
+          setQueueError(false);
+        })
+        .catch(() => setQueueError(true));
+    };
+    loadQueue();
+    const interval = setInterval(loadQueue, 45000);
     return () => clearInterval(interval);
-
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    getPendingRedemptions()
+      .then((list) => {
+        setPendingRedemptions(list);
+        if (list.length === 1) setSelectedRedemptionId(list[0].id);
+      })
+      .catch(() => setPendingRedemptions([]));
+  }, [user]);
 
 
-  if (!user) {
 
-    navigate('/auth');
-
-    return null;
-
-  }
-
-
+  if (!user) return null;
 
   if (items.length === 0) {
-
     navigate('/cart');
-
     return null;
-
   }
 
 
@@ -173,6 +190,24 @@ export function CheckoutPage() {
 
     if (!storeOpen) {
       setError('El local está cerrado — no puedes confirmar pedidos ahora');
+      scrollToCheckoutError();
+      return;
+    }
+
+    if (storeSaturated) {
+      setError('El local está saturado — inténtalo en unos minutos');
+      scrollToCheckoutError();
+      return;
+    }
+
+    if (user.isBlocked) {
+      setError('Tu cuenta está bloqueada. Contacta con el local.');
+      scrollToCheckoutError();
+      return;
+    }
+
+    if (!meetsMinimum) {
+      setError(`Pedido mínimo ${settings.minOrderAmount}€ — te faltan ${formatPrice(remainingForMinimum)}`);
       scrollToCheckoutError();
       return;
     }
@@ -231,14 +266,16 @@ export function CheckoutPage() {
         address: orderType === 'delivery' ? deliveryPayload?.fullAddress : undefined,
 
         deliveryAddress: orderType === 'delivery' ? deliveryPayload ?? undefined : undefined,
+        redemptionId: selectedRedemptionId ?? undefined,
 
       });
 
-
-
-      const updatedUser = useAuthStore.getState().user;
-
-      if (updatedUser) setUser(updatedUser);
+      try {
+        const freshUser = await getCurrentUser();
+        if (freshUser) setUser(freshUser);
+      } catch {
+        // non-critical
+      }
 
 
 
@@ -419,6 +456,36 @@ export function CheckoutPage() {
 
 
 
+      {pendingRedemptions.length > 0 && (
+        <Card>
+          <h3>🎁 Recompensa canjeada</h3>
+          <p className="hint">Se aplicará automáticamente a este pedido</p>
+          <div className="option-group">
+            <button
+              type="button"
+              className={`option-btn ${!selectedRedemptionId ? 'active' : ''}`}
+              onClick={() => setSelectedRedemptionId(null)}
+            >
+              No usar ahora
+            </button>
+            {pendingRedemptions.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`option-btn ${selectedRedemptionId === r.id ? 'active' : ''}`}
+                onClick={() => setSelectedRedemptionId(r.id)}
+              >
+                {r.rewardName}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {queueError && !queueEstimate && (
+        <p className="hint">No se pudo cargar el tiempo estimado de cola.</p>
+      )}
+
       <Card>
 
         <h3>Forma de pago</h3>
@@ -451,11 +518,15 @@ export function CheckoutPage() {
 
           >
 
-            💳 Tarjeta
+            💳 Tarjeta al recibir
 
           </button>
 
         </div>
+
+        {paymentMethod === 'card' && (
+          <p className="hint">Pagarás con tarjeta cuando recibas el pedido (datáfono en local).</p>
+        )}
 
         {paymentMethod === 'cash' && (
           <div className="cash-change-block">
@@ -500,8 +571,21 @@ export function CheckoutPage() {
 
 
 
-      <Button fullWidth size="lg" onClick={handleSubmit} disabled={loading || !storeOpen}>
-        {loading ? 'Procesando...' : storeOpen ? 'Confirmar pedido' : 'Local cerrado'}
+      <Button
+        fullWidth
+        size="lg"
+        onClick={handleSubmit}
+        disabled={loading || !storeOpen || storeSaturated || !meetsMinimum}
+      >
+        {loading
+          ? 'Procesando...'
+          : !storeOpen
+            ? 'Local cerrado'
+            : storeSaturated
+              ? 'Local saturado'
+              : !meetsMinimum
+                ? `Mínimo ${settings.minOrderAmount}€`
+                : 'Confirmar pedido'}
       </Button>
 
       <TrustBadges compact className="checkout-trust-badges" />

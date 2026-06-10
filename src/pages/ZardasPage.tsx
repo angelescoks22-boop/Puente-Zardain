@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { REWARDS } from '../data/levels';
-import { redeemReward } from '../api/products';
+import { getRewards, redeemReward, getPendingRedemptions } from '../api/products';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { LevelCard } from '../components/gamification/LevelCard';
 import { getNextRewardProgress } from '../utils/gamification';
 import { useAppStore } from '../store/appStore';
+import type { Reward } from '../types';
 
 export function ZardasPage() {
   const user = useAuthStore((s) => s.user);
@@ -16,6 +16,25 @@ export function ZardasPage() {
   const showToast = useAppStore((s) => s.showToast);
   const navigate = useNavigate();
   const [loading, setLoading] = useState<string | null>(null);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [rewardsError, setRewardsError] = useState(false);
+  const [pendingRedemptions, setPendingRedemptions] = useState<
+    { id: string; rewardName: string; createdAt: string }[]
+  >([]);
+
+  useEffect(() => {
+    getRewards()
+      .then((list) => {
+        setRewards(list);
+        setRewardsError(false);
+      })
+      .catch(() => setRewardsError(true));
+    if (user) {
+      getPendingRedemptions()
+        .then(setPendingRedemptions)
+        .catch(() => setPendingRedemptions([]));
+    }
+  }, [user]);
 
   if (!user) {
     return (
@@ -29,21 +48,22 @@ export function ZardasPage() {
     );
   }
 
-  const { nextReward, remaining, progress } = getNextRewardProgress(user.zardas, REWARDS);
+  const { nextReward, remaining, progress } = getNextRewardProgress(user.zardas, rewards);
 
-  const handleRedeem = async (rewardId: string, cost: number, name: string) => {
+  const handleRedeem = async (rewardId: string, cost: number) => {
     if (user.zardas < cost) {
       showToast('Zardas insuficientes');
       return;
     }
     setLoading(rewardId);
     try {
-      await redeemReward(user.id, cost);
-      const updated = useAuthStore.getState().user;
-      if (updated) setUser(updated);
-      showToast(`🎁 Canjeado: ${name}. Preséntalo en tu próximo pedido.`);
+      const result = await redeemReward(rewardId);
+      setUser(result.user);
+      showToast(result.message);
+      const pending = await getPendingRedemptions();
+      setPendingRedemptions(pending);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Error');
+      showToast(e instanceof Error ? e.message : 'No se pudo canjear');
     } finally {
       setLoading(null);
     }
@@ -76,10 +96,30 @@ export function ZardasPage() {
 
       <LevelCard level={user.level} orderCount={user.orderCount} />
 
+      {pendingRedemptions.length > 0 && (
+        <section className="section">
+          <h2>📋 Canjes pendientes</h2>
+          <p className="hint">Aplícalos al hacer tu próximo pedido en checkout.</p>
+          {pendingRedemptions.map((r) => (
+            <Card key={r.id} className="reward-card">
+              <strong>{r.rewardName}</strong>
+              <p className="hint">Pendiente de usar en pedido</p>
+            </Card>
+          ))}
+        </section>
+      )}
+
       <section className="section">
         <h2>🎁 Canjear recompensas</h2>
+        <p className="hint">Al canjear, se aplicará en tu próximo pedido.</p>
+        {rewardsError && (
+          <p className="form-error">No se pudieron cargar las recompensas. Inténtalo más tarde.</p>
+        )}
+        {rewards.length === 0 && !rewardsError && (
+          <p className="hint">No hay recompensas disponibles ahora mismo.</p>
+        )}
         <div className="rewards-grid">
-          {REWARDS.map((reward) => (
+          {rewards.map((reward) => (
             <Card key={reward.id} className="reward-card">
               <span className="reward-icon">{reward.icon}</span>
               <h3>{reward.name}</h3>
@@ -89,7 +129,7 @@ export function ZardasPage() {
                 fullWidth
                 size="sm"
                 disabled={user.zardas < reward.zardasCost || loading === reward.id}
-                onClick={() => handleRedeem(reward.id, reward.zardasCost, reward.name)}
+                onClick={() => handleRedeem(reward.id, reward.zardasCost)}
               >
                 {user.zardas >= reward.zardasCost ? 'Canjear' : `Faltan ${reward.zardasCost - user.zardas}`}
               </Button>

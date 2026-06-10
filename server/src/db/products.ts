@@ -86,8 +86,17 @@ export async function updateById(id: string, data: Partial<IProduct>): Promise<I
   return rows[0] ? mapProductRow(rows[0]) : null;
 }
 
-export async function softDelete(id: string): Promise<void> {
-  await query('UPDATE products SET active = false, updated_at = now() WHERE id = $1', [id]);
+export async function softDelete(id: string): Promise<boolean> {
+  const { rowCount } = await query(
+    'UPDATE products SET active = false, updated_at = now() WHERE id = $1',
+    [id],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
+export async function deleteById(id: string): Promise<boolean> {
+  const { rowCount } = await query('DELETE FROM products WHERE id = $1', [id]);
+  return (rowCount ?? 0) > 0;
 }
 
 export async function deactivateByCategories(categories: string[]): Promise<void> {

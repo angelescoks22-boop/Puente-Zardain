@@ -15,6 +15,15 @@ export function getAuthErrorMessage(err: unknown): string {
     if (err.code === 'NO_PENDING') {
       return 'Tu registro expiró. Vuelve atrás y crea la cuenta de nuevo.';
     }
+    if (err.code === 'WRONG_PASSWORD') {
+      return 'La contraseña actual no es correcta.';
+    }
+    if (err.code === 'CURRENT_PASSWORD_REQUIRED') {
+      return 'Introduce tu contraseña actual.';
+    }
+    if (err.code === 'RATE_LIMIT' || err.status === 429) {
+      return err.message || 'Demasiados intentos. Espera unos minutos.';
+    }
     if (err.status === 401) {
       return 'Email o contraseña incorrectos. Revísalos e inténtalo de nuevo.';
     }

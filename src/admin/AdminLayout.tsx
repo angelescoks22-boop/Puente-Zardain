@@ -62,10 +62,17 @@ export function AdminLayout() {
     };
   }, []);
 
+  const [toggleError, setToggleError] = useState('');
+
   const handleToggle = async () => {
-    const res = await adminApi.toggleOrders();
-    setOrdersOpen(res.ordersOpen);
-    setBusinessStatus(res.businessStatus);
+    setToggleError('');
+    try {
+      const res = await adminApi.toggleOrders();
+      setOrdersOpen(res.ordersOpen);
+      setBusinessStatus(res.businessStatus);
+    } catch {
+      setToggleError('No se pudo cambiar el estado del local');
+    }
   };
 
   if (isLoading || role !== 'admin') return <div className="admin-main">Cargando...</div>;
@@ -114,6 +121,7 @@ export function AdminLayout() {
             <button type="button" className="status-btn" onClick={handleToggle}>
               {ordersOpen ? 'Cerrar pedidos' : 'Abrir pedidos'}
             </button>
+            {toggleError && <span className="form-error">{toggleError}</span>}
           </div>
         </div>
         <Outlet context={{ ordersOpen, setOrdersOpen }} />

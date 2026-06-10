@@ -2,13 +2,14 @@ import { sanitizeDeliveryDetailsFields } from './deliveryAddress.js';
 import { env } from '../config/env.js';
 
 export const DELIVERY_CITY = 'Arroyomolinos';
+export const ARROYOMOLINOS_POSTAL_CODE = '28939';
 
-/** Bounding box aproximado de Arroyomolinos */
+/** Bounding box ampliado de Arroyomolinos y alrededores inmediatos */
 export const ARROYOMOLINOS_BOUNDS = {
-  minLat: 40.265,
-  maxLat: 40.335,
-  minLng: -3.92,
-  maxLng: -3.82,
+  minLat: 40.252,
+  maxLat: 40.348,
+  minLng: -3.938,
+  maxLng: -3.802,
 };
 
 export type AddressPayload = {
@@ -46,6 +47,27 @@ export function isArroyomolinosCity(city: string): boolean {
   return n.includes('arroyomolinos');
 }
 
+export function isArroyomolinosInText(text: string): boolean {
+  return normalize(text).includes('arroyomolinos');
+}
+
+export function hasArroyomolinosPostalCode(text: string): boolean {
+  return new RegExp(`\\b${ARROYOMOLINOS_POSTAL_CODE}\\b`).test(text);
+}
+
+/** ¿La coordenada + texto corresponden a zona de reparto en Arroyomolinos? */
+export function isInDeliveryArea(
+  lat: number,
+  lng: number,
+  fullAddress: string,
+  city?: string,
+): boolean {
+  const distKm = distanceKm(env.restaurantLat, env.restaurantLng, lat, lng);
+  if (distKm > env.deliveryRadiusKm) return false;
+
+  return isInArroyomolinosBounds(lat, lng);
+}
+
 export function validateAddressPayload(addr: Partial<AddressPayload>): {
   valid: boolean;
   message: string;
@@ -60,10 +82,7 @@ export function validateAddressPayload(addr: Partial<AddressPayload>): {
     return { valid: false, message: 'Dirección no geolocalizada. Selecciona una sugerencia válida.' };
   }
 
-  const inBounds = isInArroyomolinosBounds(lat, lng);
-  const cityOk = city ? isArroyomolinosCity(city) : false;
   const distKm = distanceKm(env.restaurantLat, env.restaurantLng, lat, lng);
-
   if (distKm > env.deliveryRadiusKm) {
     return {
       valid: false,
@@ -71,21 +90,26 @@ export function validateAddressPayload(addr: Partial<AddressPayload>): {
     };
   }
 
-  if (!inBounds && !cityOk) {
+  if (!isInDeliveryArea(lat, lng, fullAddress, city)) {
     return {
       valid: false,
-      message: 'Solo disponible en Arroyomolinos. Elige una dirección dentro de la zona.',
+      message: 'Solo disponible en Arroyomolinos. Elige una dirección dentro del municipio.',
     };
   }
 
   const extra = sanitizeDeliveryDetailsFields({ portal, floor, door, details });
+  const resolvedCity = city?.trim() && isArroyomolinosCity(city)
+    ? city.trim()
+    : isArroyomolinosInText(fullAddress)
+      ? DELIVERY_CITY
+      : (city?.trim() || DELIVERY_CITY);
 
   return {
     valid: true,
     message: 'Dirección válida',
     address: {
       fullAddress: fullAddress.trim(),
-      city: city?.trim() || DELIVERY_CITY,
+      city: resolvedCity,
       lat,
       lng,
       placeId,

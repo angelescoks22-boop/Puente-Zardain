@@ -68,23 +68,58 @@ export async function submitReview(
 }
 
 export async function getFavoriteProducts(_userId: string): Promise<string[]> {
-  return [];
+  return apiFetch<string[]>('/favorites/products');
 }
 
-export async function toggleFavoriteProduct(_userId: string, _productId: string): Promise<boolean> {
-  return false;
+export async function toggleFavoriteProduct(_userId: string, productId: string): Promise<boolean> {
+  const res = await apiFetch<{ added: boolean }>(`/favorites/products/${productId}/toggle`, {
+    method: 'POST',
+  });
+  return res.added;
 }
 
 export async function getFavoriteOrders(_userId: string) {
-  return [];
+  return apiFetch<import('../types').FavoriteOrder[]>('/favorites/orders');
 }
 
-export async function saveFavoriteOrder(_userId: string, name: string, items: import('../types').FavoriteOrder['items']) {
-  return { id: 'local', name, items, createdAt: new Date().toISOString() };
+export async function saveFavoriteOrder(
+  _userId: string,
+  name: string,
+  items: import('../types').FavoriteOrder['items'],
+) {
+  return apiFetch<import('../types').FavoriteOrder>('/favorites/orders', {
+    method: 'POST',
+    body: JSON.stringify({ name, items }),
+  });
 }
 
-export async function redeemReward(_userId: string, _cost: number): Promise<void> {
-  // TODO: endpoint canje
+export async function deleteFavoriteOrder(_userId: string, favId: string) {
+  return apiFetch<{ ok: boolean }>(`/favorites/orders/${favId}`, { method: 'DELETE' });
+}
+
+export async function getPendingRedemptions() {
+  return apiFetch<{
+    id: string;
+    rewardId: string;
+    rewardName: string;
+    zardasCost: number;
+    status: string;
+    createdAt: string;
+  }[]>('/rewards/redemptions');
+}
+
+export async function redeemReward(_rewardId: string): Promise<{
+  user: import('../types').User;
+  message: string;
+}> {
+  const res = await apiFetch<{
+    user: import('../types').User;
+    message: string;
+  }>('/rewards/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ rewardId: _rewardId }),
+  });
+  return res;
 }
 
 /** GET /api/settings/public */

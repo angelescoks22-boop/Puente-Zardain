@@ -8,6 +8,7 @@ export type CreateUserInput = {
   phone: string;
   email: string;
   password: string;
+  passwordUserSet?: boolean;
   role?: UserRole;
   address?: string;
   addresses?: IUserAddress[];
@@ -68,14 +69,15 @@ export async function create(data: CreateUserInput): Promise<IUser> {
   const addresses = serializeAddresses(data.addresses ?? []);
   const { rows } = await query(
     `INSERT INTO users (
-      name, phone, email, password, role, address, addresses, zardas, level, phone_verified
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+      name, phone, email, password, password_user_set, role, address, addresses, zardas, level, phone_verified
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
     RETURNING *`,
     [
       data.name,
       data.phone,
       data.email.toLowerCase(),
       data.password,
+      data.passwordUserSet ?? false,
       data.role ?? 'client',
       data.address ?? null,
       JSON.stringify(addresses),
@@ -85,6 +87,23 @@ export async function create(data: CreateUserInput): Promise<IUser> {
     ],
   );
   return mapUserRow(rows[0]);
+}
+
+export async function updatePassword(
+  userId: string,
+  passwordHash: string,
+  passwordUserSet = true,
+): Promise<IUser | null> {
+  const { rows } = await query(
+    `UPDATE users SET password = $2, password_user_set = $3, updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [userId, passwordHash, passwordUserSet],
+  );
+  return rows[0] ? mapUserRow(rows[0]) : null;
+}
+
+export async function markPasswordUserSet(userId: string): Promise<void> {
+  await query('UPDATE users SET password_user_set = true, updated_at = now() WHERE id = $1', [userId]);
 }
 
 export async function save(user: IUser): Promise<IUser> {
@@ -156,6 +175,45 @@ export async function updateById(id: string, patch: Partial<Pick<IUser, 'clientS
 
 export async function incrementZardas(id: string, amount: number): Promise<void> {
   await query('UPDATE users SET zardas = zardas + $2, updated_at = now() WHERE id = $1', [id, amount]);
+}
+
+export async function decrementZardasIfEnough(id: string, amount: number): Promise<IUser | null> {
+  const { rows } = await query(
+    `UPDATE users SET zardas = zardas - $2, updated_at = now()
+     WHERE id = $1 AND zardas >= $2
+     RETURNING *`,
+    [id, amount],
+  );
+  return rows[0] ? mapUserRow(rows[0]) : null;
+}
+
+export async function claimBirthdayRewardAtomic(
+  userId: string,
+  year: number,
+  zardasAmount: number,
+): Promise<IUser | null> {
+  const { rows } = await query(
+    `UPDATE users SET
+      zardas = zardas + $3,
+      birthday_reward_claimed_year = $2,
+      birthday_free_product_pending = true,
+      updated_at = now()
+     WHERE id = $1
+       AND birthday IS NOT NULL
+       AND (birthday_reward_claimed_year IS NULL OR birthday_reward_claimed_year <> $2)
+     RETURNING *`,
+    [userId, year, zardasAmount],
+  );
+  return rows[0] ? mapUserRow(rows[0]) : null;
+}
+
+export async function consumeBirthdayFreeProduct(userId: string): Promise<boolean> {
+  const { rowCount } = await query(
+    `UPDATE users SET birthday_free_product_pending = false, updated_at = now()
+     WHERE id = $1 AND birthday_free_product_pending = true`,
+    [userId],
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function incrementZardasForIds(ids: string[], amount: number): Promise<number> {

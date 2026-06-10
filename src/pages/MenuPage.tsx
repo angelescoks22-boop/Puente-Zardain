@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Category, Product } from '../types';
 import { CATEGORY_LABELS, MENU_CATEGORIES } from '../data/products';
 import { getRecommendations } from '../api/products';
@@ -19,7 +19,7 @@ import { useSmartEta } from '../hooks/useSmartEta';
 const CATEGORIES: Category[] = MENU_CATEGORIES;
 
 const CATEGORY_STRIP_TITLES: Partial<Record<Category, string>> = {
-  montados: '🥪 Recomendados en montados',
+  montados: '🍞 Recomendados en montados',
   bocadillos: '🥖 Recomendados en bocadillos',
   hamburguesas: '🍔 Recomendados en hamburguesas',
   raciones: '🍟 Recomendados en raciones',
@@ -31,6 +31,7 @@ function parseCategoryParam(value: string | null): Category | 'all' {
 }
 
 export function MenuPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [reviewStats, setReviewStats] = useState<ProductReviewStats>({});
@@ -44,6 +45,7 @@ export function MenuPage() {
   const [apiSuggestions, setApiSuggestions] = useState<Product[]>([]);
   const user = useAuthStore((s) => s.user);
   const orders = useOrderStore((s) => s.orders);
+  const fetchOrders = useOrderStore((s) => s.fetchOrders);
   const favoriteProductIds = useAppStore((s) => s.favoriteProductIds);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const { label: etaLabel } = useSmartEta('delivery', 60000);
@@ -52,6 +54,10 @@ export function MenuPage() {
     const fromUrl = parseCategoryParam(searchParams.get('c'));
     setActiveCategory(fromUrl);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (user?.id) void fetchOrders(user.id);
+  }, [user?.id, fetchOrders]);
 
   const loadMenu = (category?: Category | 'all') => {
     setLoading(true);
@@ -103,6 +109,14 @@ export function MenuPage() {
     }
   };
 
+  const handleToggleFavorite = (productId: string) => {
+    if (!user) {
+      navigate(`/auth?from=${encodeURIComponent('/menu')}`);
+      return;
+    }
+    void toggleFavorite(user.id, productId);
+  };
+
   return (
     <div className="page menu-page">
       <div className="menu-page-header">
@@ -147,14 +161,22 @@ export function MenuPage() {
             product={product}
             onSelect={setSelectedProduct}
             isFavorite={favoriteProductIds.includes(product.id)}
-            onToggleFavorite={user ? () => toggleFavorite(user.id, product.id) : undefined}
+            onToggleFavorite={() => handleToggleFavorite(product.id)}
             rating={reviewStats[product.id]?.average}
             reviewCount={reviewStats[product.id]?.count}
           />
         ))}
       </div>
 
-      <ProductModal product={selectedProduct} open={!!selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ProductModal
+        product={selectedProduct}
+        open={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        isFavorite={selectedProduct ? favoriteProductIds.includes(selectedProduct.id) : false}
+        onToggleFavorite={
+          selectedProduct ? () => handleToggleFavorite(selectedProduct.id) : undefined
+        }
+      />
     </div>
   );
 }

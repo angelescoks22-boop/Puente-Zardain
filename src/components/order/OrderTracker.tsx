@@ -18,7 +18,7 @@ type Props = {
 };
 
 export function OrderTracker({ status, queuePosition, type, etaLabel }: Props) {
-  const currentIdx = STATUS_ORDER.indexOf(status);
+  const currentIdx = Math.max(0, STATUS_ORDER.indexOf(status));
   const visibleSteps = type === 'delivery' ? STEPS : STEPS.filter((s) => s.status !== 'on_the_way');
   const progress = status === 'delivered' ? 100 : Math.round(((currentIdx + 1) / visibleSteps.length) * 100);
   const almostReady = (status === 'preparing' || status === 'received') && queuePosition <= 1;

@@ -15,14 +15,36 @@ function parseGooglePlace(place: google.maps.places.PlaceResult): ValidatedAddre
   if (!place.geometry?.location) return null;
 
   const components = place.address_components ?? [];
-  const city =
-    components.find((c) => c.types.includes('locality'))?.long_name ??
-    components.find((c) => c.types.includes('administrative_area_level_3'))?.long_name ??
-    components.find((c) => c.types.includes('postal_town'))?.long_name ??
-    '';
+  const pick = (type: string) =>
+    components.find((c) => c.types.includes(type))?.long_name ?? '';
+
+  const cityCandidates = [
+    pick('locality'),
+    pick('postal_town'),
+    pick('sublocality'),
+    pick('sublocality_level_1'),
+    pick('administrative_area_level_3'),
+    pick('neighborhood'),
+  ].filter(Boolean);
+
+  let city = '';
+  for (const c of cityCandidates) {
+    if (c.toLowerCase().includes('arroyomolinos')) {
+      city = 'Arroyomolinos';
+      break;
+    }
+  }
+  if (!city) {
+    city = cityCandidates[0] ?? '';
+  }
+
+  const formatted = place.formatted_address ?? place.name ?? '';
+  if (!city && formatted.toLowerCase().includes('arroyomolinos')) {
+    city = 'Arroyomolinos';
+  }
 
   return {
-    fullAddress: place.formatted_address ?? place.name ?? '',
+    fullAddress: formatted,
     city,
     lat: place.geometry.location.lat(),
     lng: place.geometry.location.lng(),
@@ -99,7 +121,7 @@ export function useAddressAutocomplete(initialValue?: ValidatedAddress | null) {
           sessionToken: sessionTokenRef.current ?? undefined,
           componentRestrictions: { country: 'es' },
           location: new google.maps.LatLng(ARROYOMOLINOS_CENTER.lat, ARROYOMOLINOS_CENTER.lng),
-          radius: 12000,
+          radius: 15000,
           types: ['geocode'],
         },
         (predictions, status) => {

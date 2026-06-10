@@ -68,6 +68,20 @@ export async function updateUser(_userId: string, updates: Partial<User>): Promi
   return apiFetch<User>('/auth/me', { method: 'PATCH', body: JSON.stringify(updates) });
 }
 
+export async function changePassword(data: {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<{ user: User; token: string; message: string }> {
+  const res = await apiFetch<{ user: User; token: string; message: string }>('/auth/me/password', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  setToken(res.token, true);
+  reconnectChatSocket();
+  return res;
+}
+
 export async function logout(): Promise<void> {
   try {
     await apiFetch('/auth/logout', { method: 'POST' });

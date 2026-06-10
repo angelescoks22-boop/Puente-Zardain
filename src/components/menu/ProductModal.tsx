@@ -12,9 +12,11 @@ type Props = {
   product: Product | null;
   open: boolean;
   onClose: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 };
 
-export function ProductModal({ product, open, onClose }: Props) {
+export function ProductModal({ product, open, onClose, isFavorite, onToggleFavorite }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [removed, setRemoved] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -69,7 +71,19 @@ export function ProductModal({ product, open, onClose }: Props) {
   return (
     <Modal open={open} onClose={onClose} title={product.name}>
       <div className="product-modal">
-        <div className="product-modal-hero">{product.image}</div>
+        <div className="product-modal-hero-row">
+          <div className="product-modal-hero">{product.image}</div>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              className="fav-btn fav-btn--modal"
+              onClick={onToggleFavorite}
+              aria-label="Favorito"
+            >
+              {isFavorite ? '❤️' : '🤍'}
+            </button>
+          )}
+        </div>
         <p>{product.description}</p>
         <p className="product-modal-price">{formatPrice(product.price)}</p>
 

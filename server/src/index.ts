@@ -13,11 +13,15 @@ import reviewsRoutes from './routes/reviews.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import chatRoutes from './routes/chat.routes.js';
+import favoritesRoutes from './routes/favorites.routes.js';
+import rewardsRoutes from './routes/rewards.routes.js';
 import { setChatIo } from './services/chat.service.js';
 import { setAdminIo } from './services/adminNotify.js';
 import { setChatIoStatus } from './services/systemMonitor.service.js';
 import { runMaintenanceJobs } from './services/adminJobs.service.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
+import { securityHeaders } from './middleware/security.js';
+import { createRateLimiter } from './middleware/rateLimit.js';
 import { setupChatSocket } from './socket/chat.socket.js';
 
 const app = express();
@@ -49,7 +53,17 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+
+const apiLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 120,
+  keyPrefix: 'api',
+  message: 'Demasiadas peticiones. Espera un momento.',
+});
+
+app.use(securityHeaders);
+app.use(express.json({ limit: '512kb' }));
+app.use('/api', apiLimiter);
 
 app.get('/api/health', (_req, res) =>
   res.json({
@@ -68,6 +82,8 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/reviews', reviewsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/favorites', favoritesRoutes);
+app.use('/api/rewards', rewardsRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use(notFoundHandler);
@@ -86,7 +102,10 @@ async function start() {
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`🚀 API Puente Zardain → http://localhost:${env.port}`);
     console.log(`💬 Socket.io activo`);
-    console.log(`👤 Admin: ${env.adminEmail} / ${env.adminPassword}`);
+    console.log(`👤 Admin: ${env.adminEmail}`);
+    if (env.jwtSecret === 'dev-secret-change-me' && process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ JWT_SECRET no configurado — usa un valor seguro en producción');
+    }
 
     const JOB_INTERVAL_MS = 5 * 60 * 1000;
     setInterval(() => {
@@ -96,4 +115,7 @@ async function start() {
   });
 }
 
-start();
+start().catch((err) => {
+  console.error('❌ Error al arrancar el servidor:', err instanceof Error ? err.message : err);
+  process.exit(1);
+});

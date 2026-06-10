@@ -42,6 +42,15 @@ router.get('/stats/products', async (_req, res) => {
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   const { rating, comment, productId } = req.body;
+  const ratingNum = Number(rating);
+  if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    return res.status(400).json({ message: 'Valoración entre 1 y 5' });
+  }
+  const commentText = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
+  if (!commentText) {
+    return res.status(400).json({ message: 'Escribe un comentario' });
+  }
+
   const hasOrders = await ordersRepo.exists({ userId: req.userId, status: { ne: 'cancelled' } });
   if (!hasOrders) return res.status(403).json({ message: 'Solo puedes opinar si has hecho pedidos' });
 
@@ -52,8 +61,8 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     userId: req.userId!,
     userName: req.user!.name,
     productId: productId || undefined,
-    rating,
-    comment: comment.trim(),
+    rating: ratingNum,
+    comment: commentText,
     approved: false,
     verified: true,
   });

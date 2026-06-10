@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { claimBirthdayReward, getBirthdayStatus } from '../../api/auth';
-import { isBirthdayToday } from '../../utils/birthday';
 import { Button } from '../ui/Button';
 
 export function BirthdayBanner() {
@@ -23,16 +22,7 @@ export function BirthdayBanner() {
     if (!user || user.role === 'admin') return;
     getBirthdayStatus()
       .then(setStatus)
-      .catch(() => {
-        if (isBirthdayToday(user.birthday) && !user.birthdayRewardClaimedYear) {
-          setStatus({
-            isBirthday: true,
-            claimed: false,
-            zardasReward: 50,
-            freeProduct: 'Bebida gratis',
-          });
-        }
-      });
+      .catch(() => setStatus(null));
   }, [user]);
 
   if (!user || dismissed || !status?.isBirthday) return null;

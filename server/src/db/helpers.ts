@@ -81,6 +81,7 @@ export function mapUserRow(row: Record<string, unknown>): IUser {
       ? num(row.birthday_reward_claimed_year)
       : undefined,
     birthdayFreeProductPending: Boolean(row.birthday_free_product_pending),
+    passwordUserSet: Boolean(row.password_user_set),
     createdAt: toDate(row.created_at)!,
     updatedAt: toDate(row.updated_at),
   };
@@ -111,6 +112,7 @@ export function mapOrderRow(row: Record<string, unknown>): IOrder {
     cancelReason: row.cancel_reason ? String(row.cancel_reason) : undefined,
     ticketSnapshot: row.ticket_snapshot as Record<string, unknown> | undefined,
     ticketGeneratedAt: toDate(row.ticket_generated_at),
+    rewardsGranted: Boolean(row.rewards_granted),
     createdAt: toDate(row.created_at)!,
     updatedAt: toDate(row.updated_at),
   };
@@ -194,6 +196,7 @@ export function mapPendingOtpRow(row: Record<string, unknown>): IPendingOtp {
     phone: row.phone ? String(row.phone) : undefined,
     name: row.name ? String(row.name) : undefined,
     passwordHash: row.password_hash ? String(row.password_hash) : undefined,
+    passwordUserSet: Boolean(row.password_user_set),
     otp: String(row.otp ?? ''),
     attempts: num(row.attempts),
     expiresAt: toDate(row.expires_at)!,

@@ -3,6 +3,7 @@ import type { FavoriteOrder, Notification } from '../types';
 import * as productsApi from '../api/products';
 import { ensureAppSocket, onBusinessMessagesUpdate } from '../api/chatSocket';
 import { generateId } from '../utils/format';
+import { loadNotifications, saveNotifications } from '../utils/notificationsStorage';
 
 type AppState = {
   favoriteProductIds: string[];
@@ -15,6 +16,9 @@ type AppState = {
   loadFavorites: (userId: string) => Promise<void>;
   toggleFavorite: (userId: string, productId: string) => Promise<void>;
   saveFavoriteOrder: (userId: string, name: string, items: FavoriteOrder['items']) => Promise<void>;
+  deleteFavoriteOrder: (userId: string, favId: string) => Promise<void>;
+  removeNotification: (id: string) => void;
+  clearNotifications: () => void;
   loadBusinessMessages: () => Promise<void>;
   startBusinessMessagesSync: () => () => void;
   addNotification: (title: string, message: string) => void;
@@ -30,34 +34,80 @@ type AppState = {
 export const useAppStore = create<AppState>((set, get) => ({
   favoriteProductIds: [],
   favoriteOrders: [],
-  notifications: [],
+  notifications: loadNotifications(),
   businessMessages: [],
   toast: null,
   orderReadyOverlay: null,
   systemChatByOrder: {},
 
   loadFavorites: async (userId) => {
-    const [favoriteProductIds, favoriteOrders] = await Promise.all([
-      productsApi.getFavoriteProducts(userId),
-      productsApi.getFavoriteOrders(userId),
-    ]);
-    set({ favoriteProductIds, favoriteOrders });
+    try {
+      const [favoriteProductIds, favoriteOrders] = await Promise.all([
+        productsApi.getFavoriteProducts(userId),
+        productsApi.getFavoriteOrders(userId),
+      ]);
+      set({ favoriteProductIds, favoriteOrders });
+    } catch {
+      get().showToast('No se pudieron cargar los favoritos');
+    }
   },
 
   toggleFavorite: async (userId, productId) => {
-    const added = await productsApi.toggleFavoriteProduct(userId, productId);
-    set((s) => ({
-      favoriteProductIds: added
-        ? [...s.favoriteProductIds, productId]
-        : s.favoriteProductIds.filter((id) => id !== productId),
-    }));
-    get().showToast(added ? '❤️ Añadido a favoritos' : 'Eliminado de favoritos');
+    const prev = get().favoriteProductIds;
+    const wasFavorite = prev.includes(productId);
+    set({
+      favoriteProductIds: wasFavorite
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId],
+    });
+    try {
+      const added = await productsApi.toggleFavoriteProduct(userId, productId);
+      set((s) => ({
+        favoriteProductIds: added
+          ? [...new Set([...s.favoriteProductIds, productId])]
+          : s.favoriteProductIds.filter((id) => id !== productId),
+      }));
+      get().showToast(added ? '❤️ Añadido a favoritos' : 'Eliminado de favoritos');
+    } catch (e) {
+      set({ favoriteProductIds: prev });
+      const msg = e instanceof Error ? e.message : 'No se pudo actualizar favoritos';
+      get().showToast(msg);
+    }
   },
 
   saveFavoriteOrder: async (userId, name, items) => {
-    const fav = await productsApi.saveFavoriteOrder(userId, name, items);
-    set((s) => ({ favoriteOrders: [fav, ...s.favoriteOrders] }));
-    get().showToast('Pedido guardado en favoritos');
+    try {
+      const fav = await productsApi.saveFavoriteOrder(userId, name, items);
+      set((s) => ({ favoriteOrders: [fav, ...s.favoriteOrders] }));
+      get().showToast('Pedido guardado en favoritos');
+    } catch {
+      get().showToast('No se pudo guardar el pedido');
+    }
+  },
+
+  deleteFavoriteOrder: async (userId, favId) => {
+    const prev = get().favoriteOrders;
+    set({ favoriteOrders: prev.filter((f) => f.id !== favId) });
+    try {
+      await productsApi.deleteFavoriteOrder(userId, favId);
+      get().showToast('Pedido eliminado de favoritos');
+    } catch {
+      set({ favoriteOrders: prev });
+      get().showToast('No se pudo eliminar el favorito');
+    }
+  },
+
+  removeNotification: (id) => {
+    set((s) => {
+      const notifications = s.notifications.filter((n) => n.id !== id);
+      saveNotifications(notifications);
+      return { notifications };
+    });
+  },
+
+  clearNotifications: () => {
+    set({ notifications: [] });
+    saveNotifications([]);
   },
 
   loadBusinessMessages: async () => {
@@ -95,13 +145,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       read: false,
       createdAt: new Date().toISOString(),
     };
-    set((s) => ({ notifications: [notification, ...s.notifications] }));
+    set((s) => {
+      const notifications = [notification, ...s.notifications].slice(0, 50);
+      saveNotifications(notifications);
+      return { notifications };
+    });
   },
 
   markNotificationsRead: () => {
-    set((s) => ({
-      notifications: s.notifications.map((n) => ({ ...n, read: true })),
-    }));
+    set((s) => {
+      const notifications = s.notifications.map((n) => ({ ...n, read: true }));
+      saveNotifications(notifications);
+      return { notifications };
+    });
   },
 
   showToast: (message) => {

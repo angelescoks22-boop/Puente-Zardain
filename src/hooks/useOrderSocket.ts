@@ -3,6 +3,7 @@ import { getChatSocket } from '../api/chatSocket';
 import { useOrderStore } from '../store/orderStore';
 import { useAppStore } from '../store/appStore';
 import { useAuthStore } from '../store/authStore';
+import * as authApi from '../api/auth';
 import { requestPushPermission, showPushNotification } from '../utils/pushNotifications';
 
 const STATUS_MESSAGES: Record<string, { title: string; body: string }> = {
@@ -44,6 +45,15 @@ export function useOrderSocket() {
         const order = useOrderStore.getState().activeOrder;
         const type = order?.id === payload.orderId ? order.type : 'pickup';
         showOrderReady(payload.orderId, type);
+      }
+
+      if (payload.status === 'delivered') {
+        try {
+          const freshUser = await authApi.getCurrentUser();
+          if (freshUser) useAuthStore.getState().setUser(freshUser);
+        } catch {
+          // non-critical
+        }
       }
     };
 

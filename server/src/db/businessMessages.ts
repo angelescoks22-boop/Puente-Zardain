@@ -19,22 +19,22 @@ export async function findById(id: string): Promise<IBusinessMessage | null> {
   return rows[0] ? mapBusinessMessageRow(rows[0]) : null;
 }
 
-/** Solo un aviso activo a la vez en la web del cliente */
-export async function deactivateAllExcept(id: string): Promise<void> {
-  await query('UPDATE business_messages SET active = false WHERE id <> $1 AND active = true', [id]);
-}
-
 export async function create(data: Partial<IBusinessMessage>): Promise<IBusinessMessage> {
-  const active = data.active ?? true;
   const msg = await query(
     `INSERT INTO business_messages (text, type, active)
      VALUES ($1, $2, $3)
      RETURNING *`,
-    [String(data.text ?? '').trim(), data.type ?? 'info', active],
+    [String(data.text ?? '').trim(), data.type ?? 'info', data.active ?? true],
   );
-  const created = mapBusinessMessageRow(msg.rows[0]);
-  if (active) {
-    await deactivateAllExcept(created.id);
+  return mapBusinessMessageRow(msg.rows[0]);
+}
+
+export async function createMany(items: Partial<IBusinessMessage>[]): Promise<IBusinessMessage[]> {
+  const created: IBusinessMessage[] = [];
+  for (const item of items) {
+    const text = String(item.text ?? '').trim();
+    if (!text) continue;
+    created.push(await create({ text, type: item.type ?? 'info', active: item.active ?? true }));
   }
   return created;
 }
@@ -43,9 +43,6 @@ export async function updateById(id: string, data: Partial<IBusinessMessage>): P
   const existing = await findById(id);
   if (!existing) return null;
   const merged = { ...existing, ...data };
-  if (merged.active) {
-    await deactivateAllExcept(id);
-  }
   const { rows } = await query(
     'UPDATE business_messages SET text = $2, type = $3, active = $4 WHERE id = $1 RETURNING *',
     [id, merged.text.trim(), merged.type, merged.active],
@@ -63,7 +60,5 @@ export async function countDocuments(): Promise<number> {
 }
 
 export async function insertMany(items: Partial<IBusinessMessage>[]): Promise<void> {
-  for (const item of items) {
-    await create(item);
-  }
+  await createMany(items);
 }

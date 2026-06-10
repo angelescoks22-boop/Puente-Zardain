@@ -7,9 +7,10 @@ import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/Modal';
 import { formatPrice } from '../utils/format';
 import { getCustomizationLabel } from '../utils/ingredients';
-import { MIN_ORDER_AMOUNT } from '../data/levels';
 import { CartSmartSuggestions } from '../components/smart/CartSmartSuggestions';
-import { getProducts, getPublicSettings } from '../api/products';
+import { loadMenuData } from '../utils/loadMenu';
+import { useSettingsStore } from '../store/settingsStore';
+import { ErrorRetry } from '../components/ui/ErrorRetry';
 import type { Product } from '../types';
 
 export function CartPage() {
@@ -21,12 +22,19 @@ export function CartPage() {
   const showToast = useAppStore((s) => s.showToast);
   const meetsMinimum = useCartStore((s) => s.meetsMinimum());
   const remaining = useCartStore((s) => s.remainingForMinimum());
+  const minOrder = useSettingsStore((s) => s.minOrderAmount);
   const [products, setProducts] = useState<Product[]>([]);
-  const [minOrder, setMinOrder] = useState(MIN_ORDER_AMOUNT);
+  const [productsError, setProductsError] = useState('');
 
   useEffect(() => {
-    getProducts().then(setProducts).catch(() => {});
-    getPublicSettings().then((s) => setMinOrder(s.minOrderAmount)).catch(() => {});
+    loadMenuData()
+      .then((data) => {
+        setProducts(data.products);
+        setProductsError('');
+      })
+      .catch((e) => {
+        setProductsError(e instanceof Error ? e.message : 'No se pudo cargar la carta');
+      });
   }, []);
 
   if (items.length === 0) {
@@ -45,6 +53,17 @@ export function CartPage() {
   return (
     <div className="page cart-page">
       <h1>🛒 Carrito</h1>
+
+      {productsError && (
+        <ErrorRetry message={productsError} onRetry={() => {
+          loadMenuData()
+            .then((data) => {
+              setProducts(data.products);
+              setProductsError('');
+            })
+            .catch((e) => setProductsError(e instanceof Error ? e.message : 'Error'));
+        }} />
+      )}
 
       <CartSmartSuggestions cartItems={items} products={products} minOrderAmount={minOrder} />
 

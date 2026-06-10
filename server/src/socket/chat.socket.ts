@@ -16,6 +16,7 @@ async function authenticateSocket(token?: string): Promise<SocketUser | null> {
     const decoded = jwt.verify(token, env.jwtSecret) as { id: string; role: string };
     const user = await usersRepo.findById(decoded.id);
     if (!user) return null;
+    if (user.isBlocked || user.clientStatus === 'blocked') return null;
     return { id: user.id, role: user.role, name: user.name };
   } catch {
     return null;

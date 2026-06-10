@@ -8,25 +8,40 @@ export function AdminCustomersPage() {
   const [detail, setDetail] = useState<{ user: AdminCustomer & { email?: string; address?: string; streak?: number }; orders: AdminOrder[] } | null>(null);
   const [search, setSearch] = useState('');
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const setStatus = async (id: string, clientStatus: string) => {
-    await adminApi.updateCustomerStatus(id, clientStatus);
-    refresh();
-    if (selectedId === id) void loadDetail(id);
+    setActionError('');
+    try {
+      await adminApi.updateCustomerStatus(id, clientStatus);
+      refresh();
+      if (selectedId === id) void loadDetail(id);
+    } catch {
+      setActionError('No se pudo actualizar el estado del cliente');
+    }
   };
 
   const adjustZardas = async (id: string, delta: number) => {
-    await adminApi.updateZardas(id, delta);
-    refresh();
-    if (selectedId === id) void loadDetail(id);
+    setActionError('');
+    try {
+      await adminApi.updateZardas(id, delta);
+      refresh();
+      if (selectedId === id) void loadDetail(id);
+    } catch {
+      setActionError('No se pudieron ajustar las Zardas');
+    }
   };
 
   const loadDetail = async (id: string) => {
     setLoadingDetail(true);
     setSelectedId(id);
+    setActionError('');
     try {
       const data = await adminApi.getCustomerDetail(id);
       setDetail(data);
+    } catch {
+      setActionError('No se pudo cargar el detalle del cliente');
+      setDetail(null);
     } finally {
       setLoadingDetail(false);
     }
@@ -49,6 +64,8 @@ export function AdminCustomersPage() {
   return (
     <div>
       <h2>👥 Gestión de clientes</h2>
+
+      {actionError && <p className="form-error">{actionError}</p>}
 
       <div className="admin-grid admin-grid-4" style={{ marginBottom: 20 }}>
         <div className="stat-card">

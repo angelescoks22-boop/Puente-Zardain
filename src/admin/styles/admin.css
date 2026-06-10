@@ -159,10 +159,11 @@ html.admin-light #root {
   width: 100%;
   background: white;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.admin-table table { width: 100%; border-collapse: collapse; }
+.admin-table table { width: 100%; border-collapse: collapse; min-width: 560px; }
 .admin-table th, .admin-table td {
   padding: 12px 16px;
   text-align: left;
@@ -184,7 +185,9 @@ html.admin-light #root {
 @media (max-width: 768px) {
   .admin-sidebar { width: 60px; }
   .admin-sidebar .nav-label, .admin-brand small, .admin-brand strong { display: none; }
-  .admin-main { margin-left: 60px; padding: 12px; }
+  .admin-main { margin-left: 60px; padding: 12px; min-width: 0; }
+  .admin-topbar { flex-wrap: wrap; gap: 8px; }
+  .admin-topbar h1 { font-size: 1.1rem; }
 }
 
 /* Admin Chat */

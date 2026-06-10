@@ -1,8 +1,9 @@
-import type { User } from '../../types';
+import { useEffect, useState } from 'react';
+import type { User, Reward } from '../../types';
 import { Link } from 'react-router-dom';
 import { getLevelInfo } from '../../utils/gamification';
 import { getNextRewardProgress } from '../../utils/gamification';
-import { REWARDS } from '../../data/levels';
+import { getRewards } from '../../api/products';
 import { ProgressBar } from '../ui/ProgressBar';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -10,7 +11,15 @@ import { Badge } from '../ui/Badge';
 type Props = { user: User };
 
 export function ZardasWidget({ user }: Props) {
-  const { nextReward, remaining, progress } = getNextRewardProgress(user.zardas, REWARDS);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+
+  useEffect(() => {
+    getRewards()
+      .then(setRewards)
+      .catch(() => setRewards([]));
+  }, []);
+
+  const { nextReward, remaining, progress } = getNextRewardProgress(user.zardas, rewards);
   const level = getLevelInfo(user.level);
 
   return (
@@ -30,7 +39,7 @@ export function ZardasWidget({ user }: Props) {
         {nextReward && remaining > 0 && (
           <ProgressBar
             value={progress}
-            label={`Te faltan ${remaining} Zardas para: ${nextReward.zardasCost >= 120 ? 'Bocadillo' : nextReward.zardasCost >= 80 ? 'Patatas' : 'Bebida'}`}
+            label={`Te faltan ${remaining} Zardas para tu próximo premio`}
           />
         )}
         <p className="hint zardas-widget-cta">Ver Zardas y recompensas →</p>

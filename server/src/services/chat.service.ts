@@ -3,6 +3,8 @@ import type { IConversation } from '../models/Conversation.js';
 import type { IMessage } from '../models/Message.js';
 import * as conversationsRepo from '../db/conversations.js';
 import * as messagesRepo from '../db/messages.js';
+import * as ordersRepo from '../db/orders.js';
+import { AppError } from '../utils/logger.js';
 
 export type FormattedMessage = {
   id: string;
@@ -152,6 +154,10 @@ export async function findOrCreateConversation(
   orderId?: string,
 ) {
   if (orderId) {
+    const order = await ordersRepo.findById(orderId);
+    if (!order) throw new AppError('Pedido no encontrado', 404);
+    if (order.userId !== userId) throw new AppError('Acceso denegado', 403);
+
     let conversation = await conversationsRepo.findByOrderId(orderId);
     if (!conversation) {
       conversation = await conversationsRepo.create({
@@ -160,6 +166,8 @@ export async function findOrCreateConversation(
         orderId,
         status: 'active',
       });
+    } else if (conversation.userId !== userId) {
+      throw new AppError('Acceso denegado', 403);
     }
     return conversation;
   }

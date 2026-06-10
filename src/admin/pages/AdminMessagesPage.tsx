@@ -15,6 +15,7 @@ export function AdminMessagesPage() {
   const confirm = useAlertStore((s) => s.confirm);
 
   const [text, setText] = useState('');
+  const [bulkText, setBulkText] = useState('');
   const [type, setType] = useState('info');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -31,6 +32,31 @@ export function AdminMessagesPage() {
       await adminApi.createMessage({ text: trimmed, type, active: true });
       setText('');
       setFeedback('✅ Mensaje publicado — los clientes lo verán al instante');
+      refresh();
+    } catch (e) {
+      void alert(e instanceof Error ? e.message : 'No se pudo publicar', 'Error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createBulk = async () => {
+    const lines = bulkText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) {
+      void alert('Escribe al menos un mensaje (uno por línea).', 'Sin mensajes');
+      return;
+    }
+    setBusy(true);
+    setFeedback('');
+    try {
+      const created = await adminApi.createMessages(
+        lines.map((line) => ({ text: line, type, active: true })),
+      );
+      setBulkText('');
+      setFeedback(`✅ ${created.length} mensaje${created.length !== 1 ? 's' : ''} publicados`);
       refresh();
     } catch (e) {
       void alert(e instanceof Error ? e.message : 'No se pudo publicar', 'Error');
@@ -74,7 +100,7 @@ export function AdminMessagesPage() {
     <div>
       <h2>📢 Mensajes a clientes</h2>
       <p className="hint">
-        Aparecen en la franja superior de la web (todas las páginas). Solo puede haber <strong>un mensaje activo</strong> a la vez.
+        Aparecen en la franja superior de la web (todas las páginas). Puedes tener <strong>varios mensajes activos</strong> a la vez.
       </p>
 
       {feedback && <p className="hint">{feedback}</p>}
@@ -107,11 +133,33 @@ export function AdminMessagesPage() {
           disabled={busy || !text.trim()}
           onClick={create}
         >
-          {busy ? 'Publicando…' : 'Publicar y activar'}
+          {busy ? 'Publicando…' : 'Publicar mensaje'}
         </button>
       </div>
 
-      <p className="hint">{activeCount > 0 ? `Activo ahora: ${activeCount}` : 'Ningún mensaje activo'}</p>
+      <div className="stat-card" style={{ margin: '16px 0' }}>
+        <h3>Varios mensajes a la vez</h3>
+        <p className="hint">Escribe un mensaje por línea. Todos se publicarán activos con el mismo tipo.</p>
+        <textarea
+          className="input textarea"
+          placeholder={'🎉 Promo del día\n⏱️ Tiempo de espera ~25 min\n🚚 Reparto solo en Arroyomolinos'}
+          value={bulkText}
+          rows={5}
+          disabled={busy}
+          onChange={(e) => setBulkText(e.target.value)}
+        />
+        <button
+          type="button"
+          className="status-btn"
+          style={{ marginTop: 8 }}
+          disabled={busy || !bulkText.trim()}
+          onClick={createBulk}
+        >
+          {busy ? 'Publicando…' : 'Publicar todos'}
+        </button>
+      </div>
+
+      <p className="hint">{activeCount > 0 ? `${activeCount} mensaje${activeCount !== 1 ? 's' : ''} activo${activeCount !== 1 ? 's' : ''} ahora` : 'Ningún mensaje activo'}</p>
 
       {messages?.length === 0 && <p className="hint">No hay mensajes creados.</p>}
 

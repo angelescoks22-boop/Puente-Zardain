@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import type { CartItem, Product } from '../types';
 
 import { MIN_ORDER_AMOUNT } from '../data/levels';
+import { useSettingsStore } from './settingsStore';
 
 import { generateId } from '../utils/format';
 
@@ -196,11 +197,15 @@ export const useCartStore = create<CartState>((set, get) => ({
 
 
 
-  meetsMinimum: () => get().total() >= MIN_ORDER_AMOUNT,
+  meetsMinimum: () => {
+    const min = useSettingsStore.getState().minOrderAmount ?? MIN_ORDER_AMOUNT;
+    return get().total() >= min;
+  },
 
-
-
-  remainingForMinimum: () => Math.max(0, MIN_ORDER_AMOUNT - get().total()),
+  remainingForMinimum: () => {
+    const min = useSettingsStore.getState().minOrderAmount ?? MIN_ORDER_AMOUNT;
+    return Math.max(0, min - get().total());
+  },
 
 }));
 

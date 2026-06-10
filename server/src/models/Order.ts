@@ -49,6 +49,7 @@ export interface IOrder {
   cancelReason?: string;
   ticketSnapshot?: Record<string, unknown>;
   ticketGeneratedAt?: Date;
+  rewardsGranted?: boolean;
   createdAt: Date;
   updatedAt?: Date;
 }

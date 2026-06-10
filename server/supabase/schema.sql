@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
   birthday date,
   birthday_reward_claimed_year int,
   birthday_free_product_pending boolean NOT NULL DEFAULT false,
+  password_user_set boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS pending_otps (
   phone text,
   name text,
   password_hash text,
+  password_user_set boolean NOT NULL DEFAULT false,
   otp text NOT NULL,
   attempts int NOT NULL DEFAULT 0,
   expires_at timestamptz NOT NULL,
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_method text NOT NULL,
   cash_paid_amount numeric,
   cash_change numeric,
+  rewards_granted boolean NOT NULL DEFAULT false,
   address text,
   delivery_address jsonb,
   delivery_lat numeric,
@@ -212,3 +215,32 @@ CREATE TABLE IF NOT EXISTS revoked_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_revoked_tokens_expires ON revoked_tokens (expires_at);
+
+CREATE TABLE IF NOT EXISTS user_favorite_products (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_favorite_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_favorite_orders_user ON user_favorite_orders (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS user_reward_redemptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reward_id uuid NOT NULL REFERENCES rewards(id) ON DELETE CASCADE,
+  reward_name text NOT NULL,
+  zardas_cost int NOT NULL,
+  status text NOT NULL DEFAULT 'pending',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reward_redemptions_user ON user_reward_redemptions (user_id, created_at DESC);

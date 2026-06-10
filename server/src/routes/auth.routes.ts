@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import type { IUser } from '../models/User.js';
 import * as usersRepo from '../db/users.js';
@@ -12,11 +13,48 @@ import {
   registerSchema,
   loginSchema,
   resendOtpSchema,
+  changePasswordSchema,
 } from '../schemas/auth.schema.js';
 import { ZARDAS_REGISTER, ZARDAS_BIRTHDAY, BIRTHDAY_FREE_PRODUCT } from '../utils/gamification.js';
 import { validateAddressServer, fetchAddressSuggestions } from '../services/geocode.service.js';
 import { queueOtpEmail, isEmailConfigured } from '../services/email.service.js';
+import { createRateLimiter } from '../middleware/rateLimit.js';
 import type { AddressPayload } from '../utils/addressValidation.js';
+
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  keyPrefix: 'auth',
+  message: 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.',
+});
+
+const loginLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyPrefix: 'login',
+  message: 'Demasiados intentos de acceso. Espera 15 minutos.',
+});
+
+const otpLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  keyPrefix: 'otp',
+  message: 'Demasiados códigos solicitados. Espera antes de reintentar.',
+});
+
+const passwordChangeLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyPrefix: 'pwd',
+  message: 'Demasiados intentos de cambio de contraseña. Espera 15 minutos.',
+});
+
+function userProvidedPassword(password: unknown): boolean {
+  return typeof password === 'string' && password.trim().length >= 6;
+}
+
+const router = Router();
+router.use(authLimiter);
 
 function syncLegacyAddress(user: IUser) {
   const def = user.addresses?.find((a) => a.isDefault) ?? user.addresses?.[0];
@@ -28,13 +66,11 @@ function isBirthdayToday(birthday?: Date | null, now = new Date()) {
   return birthday.getMonth() === now.getMonth() && birthday.getDate() === now.getDate();
 }
 
-const router = Router();
-
 const OTP_TTL_MS = 15 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 
 function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function normalizeEmail(email: string) {
@@ -109,7 +145,7 @@ router.get('/address-suggestions', async (req, res) => {
   res.json(suggestions);
 });
 
-router.post('/send-code', validateBody(sendCodeSchema), async (req, res) => {
+router.post('/send-code', otpLimiter, validateBody(sendCodeSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? ''));
   const user = await usersRepo.findOneByEmail(email);
   if (!user) {
@@ -155,6 +191,7 @@ async function completeEmailVerification(
       phone: pending.phone ?? placeholderPhoneFromEmail(email),
       email,
       password: pending.passwordHash,
+      passwordUserSet: pending.passwordUserSet ?? false,
       role: 'client',
       zardas: ZARDAS_REGISTER,
       phoneVerified: true,
@@ -226,21 +263,21 @@ async function completeEmailVerification(
   res.json({ user: formatUser(fresh), token, role: fresh.role, rememberMe });
 }
 
-router.post('/verify-code', validateBody(verifyCodeSchema), async (req, res) => {
+router.post('/verify-code', otpLimiter, validateBody(verifyCodeSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? ''));
   const code = String(req.body.code ?? '').replace(/\D/g, '').slice(0, 6);
   const rememberMe = req.body.rememberMe !== false;
   await completeEmailVerification(email, code, rememberMe !== false, res);
 });
 
-router.post('/verify-otp', validateBody(verifyOtpCompatSchema), async (req, res) => {
+router.post('/verify-otp', otpLimiter, validateBody(verifyOtpCompatSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? req.body.phone ?? ''));
   const code = String(req.body.code ?? '').trim();
   const rememberMe = req.body.rememberMe !== false;
   await completeEmailVerification(email, code, rememberMe !== false, res);
 });
 
-router.post('/register', validateBody(registerSchema), async (req, res) => {
+router.post('/register', otpLimiter, validateBody(registerSchema), async (req, res) => {
   const { name, phone, email, password, address } = req.body;
   const addressCheck = await validateAddressServer(address as Partial<AddressPayload>);
   if (!addressCheck.valid || !addressCheck.address) {
@@ -265,6 +302,7 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
         phone,
         name: name.trim(),
         passwordHash,
+        passwordUserSet: userProvidedPassword(password),
         pendingAddress: addressCheck.address,
       });
       return res.json({
@@ -286,6 +324,7 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
     phone,
     name: name.trim(),
     passwordHash,
+    passwordUserSet: userProvidedPassword(password),
     otp,
     attempts: 0,
     expiresAt: new Date(Date.now() + OTP_TTL_MS),
@@ -303,7 +342,7 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
   });
 });
 
-router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
+router.post('/resend-otp', otpLimiter, validateBody(resendOtpSchema), async (req, res) => {
   const email = normalizeEmail(String(req.body.email ?? req.body.phone ?? ''));
   const pending = await pendingOtpsRepo.findByEmail(email);
 
@@ -323,7 +362,7 @@ router.post('/resend-otp', validateBody(resendOtpSchema), async (req, res) => {
   res.json({ ok: true, emailSent: isEmailConfigured() });
 });
 
-router.post('/login', validateBody(loginSchema), async (req, res) => {
+router.post('/login', loginLimiter, validateBody(loginSchema), async (req, res) => {
   const { password, rememberMe = false } = req.body;
   const identifier = String(req.body.identifier ?? '').trim().toLowerCase();
   let user = await usersRepo.findOneByIdentifier(identifier);
@@ -347,6 +386,11 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ message: 'Credenciales incorrectas' });
+
+  if (!user.passwordUserSet) {
+    await usersRepo.markPasswordUserSet(user.id);
+    user.passwordUserSet = true;
+  }
 
   if (user.role === 'client' && !user.phoneVerified) {
     await createAndSendOtp(normalizeEmail(user.email));
@@ -376,8 +420,24 @@ router.get('/me', authenticate, (req: AuthRequest, res) => {
 router.patch('/me', authenticate, async (req: AuthRequest, res) => {
   const { name, phone, address, birthday, profileAvatar, profileColor, profileTagline, profileFrame } = req.body;
   const user = req.user!;
-  if (name) user.name = name;
-  if (phone) user.phone = phone;
+  if (name) {
+    const trimmed = String(name).trim().slice(0, 80);
+    if (trimmed.length < 2) {
+      return res.status(400).json({ message: 'Nombre demasiado corto' });
+    }
+    user.name = trimmed;
+  }
+  if (phone) {
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits.length < 9) {
+      return res.status(400).json({ message: 'Teléfono no válido (mínimo 9 dígitos)' });
+    }
+    const existing = await usersRepo.findOneByIdentifier(digits);
+    if (existing && existing.id !== user.id) {
+      return res.status(409).json({ message: 'Ese teléfono ya está registrado' });
+    }
+    user.phone = digits;
+  }
   if (address !== undefined) user.address = address;
   if (profileAvatar !== undefined) user.profileAvatar = profileAvatar;
   if (profileColor !== undefined) user.profileColor = profileColor;
@@ -401,6 +461,50 @@ router.patch('/me', authenticate, async (req: AuthRequest, res) => {
   }
   await usersRepo.save(user);
   res.json(formatUser(user));
+});
+
+router.post('/me/password', authenticate, passwordChangeLimiter, validateBody(changePasswordSchema), async (req: AuthRequest, res) => {
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword?: string;
+    newPassword: string;
+  };
+  const user = req.user!;
+
+  if (user.passwordUserSet) {
+    if (!currentPassword) {
+      return res.status(400).json({
+        message: 'Introduce tu contraseña actual',
+        code: 'CURRENT_PASSWORD_REQUIRED',
+      });
+    }
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ message: 'Contraseña actual incorrecta', code: 'WRONG_PASSWORD' });
+    }
+  } else if (currentPassword) {
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ message: 'Contraseña actual incorrecta', code: 'WRONG_PASSWORD' });
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  const updated = await usersRepo.updatePassword(user.id, passwordHash, true);
+  if (!updated) {
+    return res.status(500).json({ message: 'No se pudo actualizar la contraseña' });
+  }
+
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    await revokeToken(header.slice(7));
+  }
+
+  const token = signToken(updated, true);
+  res.json({
+    user: formatUser(updated),
+    token,
+    message: user.passwordUserSet ? 'Contraseña actualizada' : 'Contraseña creada correctamente',
+  });
 });
 
 router.get('/birthday-status', authenticate, (req: AuthRequest, res) => {
@@ -428,17 +532,13 @@ router.post('/claim-birthday', authenticate, async (req: AuthRequest, res) => {
   if (!isBirthdayToday(user.birthday)) {
     return res.status(400).json({ message: 'Hoy no es tu cumpleaños' });
   }
-  if (user.birthdayRewardClaimedYear === year) {
+  const updated = await usersRepo.claimBirthdayRewardAtomic(user.id, year, ZARDAS_BIRTHDAY);
+  if (!updated) {
     return res.status(409).json({ message: 'Ya reclamaste la recompensa este año' });
   }
 
-  user.zardas += ZARDAS_BIRTHDAY;
-  user.birthdayRewardClaimedYear = year;
-  user.birthdayFreeProductPending = true;
-  await usersRepo.save(user);
-
   res.json({
-    user: formatUser(user),
+    user: formatUser(updated),
     zardasAwarded: ZARDAS_BIRTHDAY,
     freeProduct: BIRTHDAY_FREE_PRODUCT,
   });

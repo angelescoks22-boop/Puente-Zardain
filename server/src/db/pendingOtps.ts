@@ -10,18 +10,20 @@ export type UpsertPendingOtpInput = {
   phone?: string;
   name?: string;
   passwordHash?: string;
+  passwordUserSet?: boolean;
   pendingAddress?: IPendingOtp['pendingAddress'];
 };
 
 export async function upsertByEmail(data: UpsertPendingOtpInput): Promise<IPendingOtp> {
   const email = data.email.toLowerCase().trim();
   const { rows } = await query(
-    `INSERT INTO pending_otps (email, phone, name, password_hash, otp, attempts, expires_at, pending_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    `INSERT INTO pending_otps (email, phone, name, password_hash, password_user_set, otp, attempts, expires_at, pending_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
      ON CONFLICT (email) DO UPDATE SET
        phone = COALESCE(EXCLUDED.phone, pending_otps.phone),
        name = COALESCE(EXCLUDED.name, pending_otps.name),
        password_hash = COALESCE(EXCLUDED.password_hash, pending_otps.password_hash),
+       password_user_set = COALESCE(EXCLUDED.password_user_set, pending_otps.password_user_set),
        pending_address = COALESCE(EXCLUDED.pending_address, pending_otps.pending_address),
        otp = EXCLUDED.otp,
        attempts = EXCLUDED.attempts,
@@ -32,6 +34,7 @@ export async function upsertByEmail(data: UpsertPendingOtpInput): Promise<IPendi
       data.phone ?? null,
       data.name ?? null,
       data.passwordHash ?? null,
+      data.passwordUserSet ?? false,
       data.otp,
       data.attempts ?? 0,
       data.expiresAt,

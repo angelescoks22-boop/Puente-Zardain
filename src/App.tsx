@@ -41,6 +41,7 @@ import { ensureAppSocket } from './api/chatSocket';
 import { useAuthStore } from './store/authStore';
 import { useAppStore } from './store/appStore';
 import { useThemeStore } from './store/themeStore';
+import { useServerStore } from './store/serverStore';
 import { AppAlert } from './components/ui/AppAlert';
 import './styles/app.css';
 import './styles/animations.css';
@@ -52,6 +53,7 @@ function AppInit() {
   const startBusinessMessagesSync = useAppStore((s) => s.startBusinessMessagesSync);
   const startSettingsSync = useSettingsStore((s) => s.startSync);
   const initTheme = useThemeStore((s) => s.initTheme);
+  const startServerMonitoring = useServerStore((s) => s.startMonitoring);
 
   useOrderSocket();
 
@@ -70,15 +72,17 @@ function AppInit() {
     ensureAppSocket();
     const stopMessagesSync = startBusinessMessagesSync();
     const stopSettingsSync = startSettingsSync();
+    const stopServerMonitoring = startServerMonitoring();
     return () => {
       stopMessagesSync();
       stopSettingsSync();
+      stopServerMonitoring();
     };
-  }, [init, startBusinessMessagesSync, startSettingsSync, initTheme]);
+  }, [init, startBusinessMessagesSync, startSettingsSync, initTheme, startServerMonitoring]);
 
   useEffect(() => {
-    if (user?.role === 'client') loadFavorites(user.id);
-  }, [user, loadFavorites]);
+    if (user?.id && user.role !== 'admin') void loadFavorites(user.id);
+  }, [user?.id, user?.role, loadFavorites]);
 
   return null;
 }
@@ -128,7 +132,7 @@ export default function App() {
           <Route path="ai-recommendation" element={<SuggestPage />} />
           <Route path="suggest" element={<Navigate to="/ai-recommendation" replace />} />
           <Route path="support" element={<SupportPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

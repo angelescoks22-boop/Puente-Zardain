@@ -46,10 +46,10 @@ function categoryEmoji(cat: ItemDef['category']) {
   const map: Record<ItemDef['category'], string> = {
     hamburguesas: '🍔',
     bocadillos: '🥖',
-    montados: '🥪',
+    montados: '🍞',
     raciones: '🍽️',
     bebidas: '🥤',
-    tostas: '🍞',
+    tostas: '🫓',
     sandwiches: '🥪',
     ensaladas: '🥗',
   };

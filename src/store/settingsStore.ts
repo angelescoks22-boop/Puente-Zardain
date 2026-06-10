@@ -87,15 +87,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     const interval = setInterval(() => {
       void get().refresh();
-    }, 30_000);
+    }, 15_000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void get().refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     const stopSocket = onSettingsUpdate((payload) => {
       applySettingsPayload(set, payload as PublicSettingsLike);
-      void get().refresh();
     });
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
       stopSocket();
     };
   },

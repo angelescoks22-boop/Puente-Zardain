@@ -20,11 +20,12 @@ const deliveryAddressSchema = z.object({
 });
 
 export const createOrderSchema = z.object({
-  items: z.array(orderItemSchema).min(1, 'El pedido está vacío'),
+  items: z.array(orderItemSchema).min(1, 'El pedido está vacío').max(30, 'Demasiados productos en el pedido'),
   total: z.coerce.number().positive('Total inválido'),
   type: z.enum(['pickup', 'delivery']),
   paymentMethod: z.enum(['cash', 'card']),
   cashPaidAmount: z.coerce.number().optional(),
   address: z.string().optional(),
   deliveryAddress: deliveryAddressSchema.optional(),
+  redemptionId: z.string().uuid().optional(),
 });

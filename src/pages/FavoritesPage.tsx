@@ -18,26 +18,29 @@ export function FavoritesPage() {
   const favoriteProductIds = useAppStore((s) => s.favoriteProductIds);
   const favoriteOrders = useAppStore((s) => s.favoriteOrders);
   const loadFavorites = useAppStore((s) => s.loadFavorites);
+  const deleteFavoriteOrder = useAppStore((s) => s.deleteFavoriteOrder);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const repeatOrder = useCartStore((s) => s.repeatOrder);
   const showToast = useAppStore((s) => s.showToast);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsError, setProductsError] = useState(false);
 
   useEffect(() => {
     if (user) loadFavorites(user.id);
   }, [user, loadFavorites]);
 
   useEffect(() => {
-    getProducts().then(setProducts).catch(() => {});
+    getProducts()
+      .then((list) => {
+        setProducts(list);
+        setProductsError(false);
+      })
+      .catch(() => setProductsError(true));
   }, []);
 
-  if (!user) {
-    navigate('/auth');
-    return null;
-  }
-
   const favProducts = products.filter((p) => favoriteProductIds.includes(p.id));
+  const orphanCount = favoriteProductIds.length - favProducts.length;
 
   return (
     <div className="page favorites-page">
@@ -50,18 +53,27 @@ export function FavoritesPage() {
             <Card key={fav.id} className="fav-order">
               <h3>{fav.name}</h3>
               <p>{fav.items.map((i) => `${i.quantity}x ${i.product.name}`).join(', ')}</p>
-              <Button
-                fullWidth
-                onClick={() => {
-                  repeatOrder(
-                    fav.items.map((i) => ({ ...i, id: generateId('cart') })),
-                  );
-                  showToast('¡Pedido cargado!');
-                  navigate('/cart');
-                }}
-              >
-                Pedir lo de siempre
-              </Button>
+              <div className="history-actions">
+                <Button
+                  fullWidth
+                  onClick={() => {
+                    repeatOrder(
+                      fav.items.map((i) => ({ ...i, id: generateId('cart') })),
+                    );
+                    showToast('¡Pedido cargado!');
+                    navigate('/cart');
+                  }}
+                >
+                  Pedir lo de siempre
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteFavoriteOrder(user!.id, fav.id)}
+                >
+                  Eliminar
+                </Button>
+              </div>
             </Card>
           ))}
         </section>
@@ -69,6 +81,12 @@ export function FavoritesPage() {
 
       <section className="section">
         <h2>Productos</h2>
+        {productsError && (
+          <p className="hint">No se pudo cargar la carta. Los favoritos pueden no mostrarse.</p>
+        )}
+        {orphanCount > 0 && (
+          <p className="hint">{orphanCount} producto(s) favorito(s) ya no están en la carta.</p>
+        )}
         {favProducts.length === 0 ? (
           <EmptyState icon="🤍" title="Sin productos favoritos" description="Marca productos con ❤️ en la carta" />
         ) : (
@@ -79,7 +97,7 @@ export function FavoritesPage() {
                 product={p}
                 onSelect={setSelectedProduct}
                 isFavorite
-                onToggleFavorite={() => toggleFavorite(user.id, p.id)}
+                onToggleFavorite={() => toggleFavorite(user!.id, p.id)}
               />
             ))}
           </div>

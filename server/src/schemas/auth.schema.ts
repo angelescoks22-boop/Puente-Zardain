@@ -60,3 +60,15 @@ export const resendOtpSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
 }).refine((d) => d.email || d.phone, { message: 'Email requerido' });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  newPassword: z.string().min(6, 'La nueva contraseña debe tener al menos 6 caracteres').max(128),
+  confirmPassword: z.string().min(6).max(128),
+}).refine((d) => d.newPassword === d.confirmPassword, {
+  message: 'Las contraseñas no coinciden',
+  path: ['confirmPassword'],
+});

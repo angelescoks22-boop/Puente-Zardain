@@ -18,13 +18,14 @@ export function Header() {
       </Link>
       <div className="header-actions">
         {isAdmin && (
-          <Link to="/admin" className="header-admin-btn">
-            ⚙️ Panel Admin
+          <Link to="/admin" className="header-admin-btn" aria-label="Panel Admin">
+            <span className="header-admin-icon" aria-hidden>⚙️</span>
+            <span className="header-admin-label">Admin</span>
           </Link>
         )}
         {user && (
-          <Link to="/zardas">
-            <Badge variant="zardas">💎 {user.zardas} Zardas</Badge>
+          <Link to="/zardas" aria-label={`${user.zardas} Zardas`}>
+            <Badge variant="zardas">💎 {user.zardas}</Badge>
           </Link>
         )}
         <UserMenuNotifications />

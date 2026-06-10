@@ -10,6 +10,15 @@ import { EmptyState } from '../components/ui/Modal';
 import { SkeletonList } from '../components/ui/Skeleton';
 import { ErrorRetry } from '../components/ui/ErrorRetry';
 import { formatDate, formatPrice } from '../utils/format';
+import type { CartItem, Order } from '../types';
+import { getOrderStatusLabel } from '../utils/orderStatus';
+
+function orderFingerprint(items: Pick<CartItem, 'productId' | 'quantity' | 'removedIngredients'>[]) {
+  return items
+    .map((i) => `${i.productId}:${i.quantity}:${i.removedIngredients.join(',')}`)
+    .sort()
+    .join('|');
+}
 
 export function HistoryPage() {
   const navigate = useNavigate();
@@ -20,16 +29,22 @@ export function HistoryPage() {
   const fetchOrders = useOrderStore((s) => s.fetchOrders);
   const repeatOrder = useCartStore((s) => s.repeatOrder);
   const saveFavoriteOrder = useAppStore((s) => s.saveFavoriteOrder);
+  const favoriteOrders = useAppStore((s) => s.favoriteOrders);
   const showToast = useAppStore((s) => s.showToast);
 
   useEffect(() => {
     if (user) fetchOrders(user.id);
   }, [user, fetchOrders]);
 
-  if (!user) {
-    navigate('/auth');
-    return null;
-  }
+  const handleSaveFavorite = (order: Order) => {
+    const fp = orderFingerprint(order.items);
+    const exists = favoriteOrders.some((f) => orderFingerprint(f.items) === fp);
+    if (exists) {
+      showToast('Este pedido ya está en favoritos');
+      return;
+    }
+    saveFavoriteOrder(user!.id, `Pedido ${formatDate(order.createdAt)}`, order.items);
+  };
 
   if (isLoading && orders.length === 0) {
     return (
@@ -48,11 +63,14 @@ export function HistoryPage() {
     );
   }
 
-  const completed = orders.filter((o) => ['delivered', 'ready', 'cancelled'].includes(o.status));
+  const visible = orders.filter((o) =>
+    ['delivered', 'ready', 'cancelled', 'received', 'preparing', 'on_the_way'].includes(o.status),
+  );
 
-  if (completed.length === 0) {
+  if (visible.length === 0) {
     return (
       <div className="page">
+        <h1>📜 Historial</h1>
         <EmptyState icon="📜" title="Sin historial" description="Tus pedidos aparecerán aquí" />
       </div>
     );
@@ -61,11 +79,11 @@ export function HistoryPage() {
   return (
     <div className="page history-page">
       <h1>📜 Historial</h1>
-      {completed.map((order) => (
+      {visible.map((order) => (
         <Card key={order.id} className="history-item">
           <div className="history-header">
             <span>{formatDate(order.createdAt)}</span>
-            <span className={`status-pill status-${order.status}`}>{order.status}</span>
+            <span className={`status-pill status-${order.status}`}>{getOrderStatusLabel(order.status)}</span>
           </div>
           <p>{order.items.map((i) => `${i.quantity}x ${i.product.name}`).join(', ')}</p>
           <strong>{formatPrice(order.total)}</strong>
@@ -83,7 +101,7 @@ export function HistoryPage() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => saveFavoriteOrder(user.id, `Pedido ${formatDate(order.createdAt)}`, order.items)}
+              onClick={() => handleSaveFavorite(order)}
             >
               ❤️ Guardar
             </Button>

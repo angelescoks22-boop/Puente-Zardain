@@ -429,7 +429,8 @@ export const adminApi = {
 
 
 
-  deleteProduct: (id: string) => adminFetch(`/products/${id}`, { method: 'DELETE' }),
+  deleteProduct: (id: string, hard = true) =>
+    adminFetch(`/products/${id}${hard ? '?hard=1' : ''}`, { method: 'DELETE' }),
 
 
 
@@ -507,6 +508,18 @@ export const adminApi = {
   createMessage: (data: { text: string; type: string; active: boolean }) =>
 
     adminFetch('/messages', { method: 'POST', body: JSON.stringify(data) }),
+
+
+
+  createMessages: (messages: { text: string; type: string; active: boolean }[]) =>
+
+    adminFetch<{ id: string; text: string; type: string; active: boolean }[]>('/messages', {
+
+      method: 'POST',
+
+      body: JSON.stringify({ messages }),
+
+    }),
 
 
 

@@ -94,6 +94,10 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
 
     if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
 
+    if (user.isBlocked || user.clientStatus === 'blocked') {
+      return res.status(403).json({ message: 'Cuenta bloqueada' });
+    }
+
     req.user = user;
 
     req.userId = user.id;
@@ -203,6 +207,8 @@ export function formatUser(user: IUser) {
     birthdayRewardClaimedYear: user.birthdayRewardClaimedYear,
 
     birthdayFreeProductPending: user.birthdayFreeProductPending ?? false,
+
+    passwordUserSet: user.passwordUserSet ?? false,
 
     createdAt: user.createdAt.toISOString(),
 

@@ -19,6 +19,7 @@ export async function seedDatabase() {
       phone: '000000000',
       email: env.adminEmail,
       password: await bcrypt.hash(env.adminPassword, 10),
+      passwordUserSet: true,
       role: 'admin',
       phoneVerified: true,
       zardas: 0,

@@ -11,10 +11,11 @@ import {
 } from '../services/chat.service.js';
 import { tryAutoReplyToUserMessage } from '../services/autoChat.service.js';
 import { paramStr } from '../utils/params.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 const router = Router();
 
-router.post('/start', authenticate, async (req: AuthRequest, res) => {
+router.post('/start', authenticate, asyncHandler(async (req: AuthRequest, res) => {
   const { orderId } = req.body;
   const user = req.user!;
   const conversation = await findOrCreateConversation(
@@ -23,7 +24,7 @@ router.post('/start', authenticate, async (req: AuthRequest, res) => {
     orderId,
   );
   res.json(formatConversation(conversation));
-});
+}));
 
 router.get('/my', authenticate, async (req: AuthRequest, res) => {
   const conversations = await conversationsRepo.find({ userId: req.userId }, 'lastMessageDesc');
@@ -40,7 +41,7 @@ router.get('/unread', authenticate, async (req: AuthRequest, res) => {
   })) });
 });
 
-router.get('/order/:orderId', authenticate, async (req: AuthRequest, res) => {
+router.get('/order/:orderId', authenticate, asyncHandler(async (req: AuthRequest, res) => {
   const user = req.user!;
   const conversation = await findOrCreateConversation(
     user.id,
@@ -53,7 +54,7 @@ router.get('/order/:orderId', authenticate, async (req: AuthRequest, res) => {
     conversation: formatConversation(conversation),
     messages: messages.map(formatMessage),
   });
-});
+}));
 
 router.get('/conversations', authenticate, requireAdmin, async (_req, res) => {
   const conversations = await conversationsRepo.find({}, 'lastMessageDesc');

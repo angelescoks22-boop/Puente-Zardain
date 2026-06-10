@@ -44,6 +44,7 @@ export interface IUser {
   birthday?: Date;
   birthdayRewardClaimedYear?: number;
   birthdayFreeProductPending?: boolean;
+  passwordUserSet?: boolean;
   createdAt: Date;
   updatedAt?: Date;
 }

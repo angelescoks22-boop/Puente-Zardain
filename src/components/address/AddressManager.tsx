@@ -47,10 +47,13 @@ export function AddressManager({ addresses, onUpdated }: Props) {
 
   const handleSetDefault = async (id: string) => {
     setLoading(true);
+    setError('');
     try {
       const user = await setDefaultAddress(id);
       setUser(user);
       onUpdated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cambiar la dirección predeterminada');
     } finally {
       setLoading(false);
     }
@@ -58,10 +61,13 @@ export function AddressManager({ addresses, onUpdated }: Props) {
 
   const handleDelete = async (id: string) => {
     setLoading(true);
+    setError('');
     try {
       const user = await deleteUserAddress(id);
       setUser(user);
       onUpdated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar la dirección');
     } finally {
       setLoading(false);
     }

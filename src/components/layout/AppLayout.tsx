@@ -9,6 +9,7 @@ import { BirthdayBanner } from '../gamification/BirthdayBanner';
 import { OrderReadyOverlay } from '../order/OrderReadyOverlay';
 import { Toast } from '../ui/Modal';
 import { SystemStatusBanner } from './SystemStatusBanner';
+import { ServerOfflineBanner } from './ServerOfflineBanner';
 import { PendingCartBanner } from '../cart/PendingCartBanner';
 import { FloatingCartBar } from '../cart/FloatingCartBar';
 import { OnboardingRedirect } from '../onboarding/OnboardingRedirect';
@@ -31,6 +32,7 @@ export function AppLayout() {
   return (
     <div className={`app-shell ${immersive ? 'app-shell--immersive' : ''}`}>
       {!immersive && <Header />}
+      {!immersive && <ServerOfflineBanner />}
       {!immersive && <SystemStatusBanner />}
       <PendingCartBanner />
       <BirthdayBanner />

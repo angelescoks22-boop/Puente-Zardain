@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAppStore } from '../store/appStore';
 import { Button } from '../components/ui/Button';
@@ -124,6 +124,8 @@ function OtpStep({
 
 export function AuthPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { from?: string } | null)?.from;
   const {
     sendCode,
     register,
@@ -161,7 +163,11 @@ export function AuthPage() {
   }, [pendingEmail, isAuthenticated, step]);
 
   const goHome = (role: 'client' | 'admin') => {
-    navigate(role === 'admin' ? '/admin' : '/');
+    if (role === 'admin') {
+      navigate('/admin');
+      return;
+    }
+    navigate(returnTo && returnTo !== '/auth' ? returnTo : '/');
   };
 
   const goToOtp = (targetEmail: string, emailSent?: boolean) => {
@@ -205,7 +211,7 @@ export function AuthPage() {
       if (hasPassword) {
         const role = await login(trimmedEmail, form.password.trim(), rememberMe);
         showToast(role === 'admin' ? 'Panel técnico' : '¡Bienvenido!');
-        navigate(role === 'admin' ? '/admin' : '/');
+        goHome(role);
         return;
       }
       const sendResult = await sendCode(trimmedEmail);

@@ -10,6 +10,8 @@ export interface IPendingOtp {
 
   passwordHash?: string;
 
+  passwordUserSet?: boolean;
+
   otp: string;
 
   attempts: number;

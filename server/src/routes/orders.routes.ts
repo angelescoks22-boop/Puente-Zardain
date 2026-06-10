@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import type { IOrder } from '../models/Order.js';
 import * as ordersRepo from '../db/orders.js';
-import * as usersRepo from '../db/users.js';
 import * as orderFeedbacksRepo from '../db/orderFeedbacks.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
-import { getLevelForOrders, getZardasBonus, ZARDAS_PER_ORDER, mapClientStatus } from '../utils/gamification.js';
+import { mapClientStatus } from '../utils/gamification.js';
+import { grantOrderCompletionRewards } from '../services/orderRewards.service.js';
 import { AppError } from '../utils/logger.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { buildOrderTicket, ticketToHtml } from '../services/ticket.service.js';
@@ -166,27 +166,15 @@ router.post('/:id/complete-rewards', authenticate, asyncHandler(async (req: Auth
   const order = await ordersRepo.findOne({ id: orderId, userId: req.userId, status: 'delivered' });
   if (!order) throw new AppError('Pedido no encontrado', 404);
 
-  const user = await usersRepo.findById(req.userId!);
-  if (!user) throw new AppError('Usuario no encontrado', 404);
+  const result = await grantOrderCompletionRewards(order);
+  if (!result.granted) {
+    return res.json({ message: 'Recompensas ya aplicadas a este pedido', alreadyGranted: true });
+  }
 
-  const today = new Date().toDateString();
-  const last = user.lastOrderDate ? new Date(user.lastOrderDate).toDateString() : null;
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-  let streak = user.streak;
-  if (last !== today) streak = last === yesterday ? streak + 1 : 1;
-
-  const bonus = getZardasBonus(user.level);
-  const zardasEarned = ZARDAS_PER_ORDER + bonus;
-  user.zardas += zardasEarned;
-  user.orderCount += 1;
-  user.streak = streak;
-  user.lastOrderDate = new Date();
-  const { level, progress } = getLevelForOrders(user.orderCount);
-  user.level = level as typeof user.level;
-  user.levelProgress = progress;
-  await usersRepo.save(user);
-
-  res.json({ zardasEarned, user: { zardas: user.zardas, level: user.level } });
+  res.json({
+    zardasEarned: result.zardasEarned,
+    user: result.user,
+  });
 }));
 
 export default router;

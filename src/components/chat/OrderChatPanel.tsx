@@ -13,6 +13,7 @@ import { useOrderStore } from '../../store/orderStore';
 import { ChatBox } from './ChatBox';
 
 import { Card } from '../ui/Card';
+import { ErrorRetry } from '../ui/ErrorRetry';
 
 
 
@@ -47,6 +48,7 @@ export function OrderChatPanel({ orderId, compact }: Props) {
   const [input, setInput] = useState('');
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [sending, setSending] = useState(false);
 
@@ -83,23 +85,18 @@ export function OrderChatPanel({ orderId, compact }: Props) {
   useEffect(() => {
 
     setLoading(true);
+    setLoadError('');
 
     getChatByOrder(orderId)
-
       .then((data) => {
-
         setConversationId(data.conversation.id);
-
         setMessages(data.messages);
-
         setActiveConversation(data.conversation.id);
-
         void refreshUnread();
-
       })
-
-      .catch(() => {})
-
+      .catch((e) => {
+        setLoadError(e instanceof Error ? e.message : 'No se pudo cargar el chat');
+      })
       .finally(() => setLoading(false));
 
 
@@ -163,6 +160,25 @@ export function OrderChatPanel({ orderId, compact }: Props) {
       <h3>💬 Chat del pedido</h3>
 
       <p className="hint">Respuestas automáticas según el estado · también te atiende el local</p>
+
+      {loadError && !loading && (
+        <ErrorRetry
+          message={loadError}
+          onRetry={() => {
+            setLoading(true);
+            setLoadError('');
+            getChatByOrder(orderId)
+              .then((data) => {
+                setConversationId(data.conversation.id);
+                setMessages(data.messages);
+                setActiveConversation(data.conversation.id);
+                void refreshUnread();
+              })
+              .catch((e) => setLoadError(e instanceof Error ? e.message : 'Error'))
+              .finally(() => setLoading(false));
+          }}
+        />
+      )}
 
       <ChatBox
 

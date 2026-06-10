@@ -111,6 +111,7 @@ export type User = {
   birthday?: string;
   birthdayRewardClaimedYear?: number;
   birthdayFreeProductPending?: boolean;
+  passwordUserSet?: boolean;
   profileAvatar?: string;
   profileColor?: string;
   profileTagline?: string;

@@ -28,6 +28,7 @@ type CreateOrderInput = {
   cashPaidAmount?: number;
   address?: string;
   deliveryAddress?: ValidatedAddress;
+  redemptionId?: string;
 };
 
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
@@ -41,6 +42,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
       cashPaidAmount: input.cashPaidAmount,
       address: input.address,
       deliveryAddress: input.deliveryAddress,
+      redemptionId: input.redemptionId,
     }),
   });
 }
@@ -59,19 +61,6 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   } catch {
     return null;
   }
-}
-
-export function applyOrderRewards(
-  userId: string,
-  getUser: () => import('../types').User | null,
-): { zardasEarned: number; surprise?: string; streakBonus: number } {
-  void userId;
-  void getUser;
-  return { zardasEarned: 15, streakBonus: 0 };
-}
-
-export function refreshOrderFromStorage(_orderId: string): Order | null {
-  return null;
 }
 
 export async function getOrderTicket(orderId: string): Promise<OrderTicket> {

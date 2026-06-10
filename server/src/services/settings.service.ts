@@ -83,6 +83,9 @@ export async function assertOrdersAccepted(): Promise<ISettings> {
   if (!isStoreOpen(settings)) {
     throw new AppError('Negocio cerrado', 403);
   }
+  if (isStoreSaturated(settings)) {
+    throw new AppError('Negocio saturado. Inténtalo en unos minutos.', 403, 'STORE_SATURATED');
+  }
   return settings;
 }
 

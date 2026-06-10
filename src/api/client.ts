@@ -101,16 +101,24 @@ export async function apiFetch<T>(
   try {
     response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   } catch {
-    throw new ApiError('Sin conexión. Comprueba tu red e inténtalo de nuevo.', 0, 'NETWORK');
+    throw new ApiError(
+      'No hay conexión con el servidor. Comprueba que npm run dev esté en marcha.',
+      0,
+      'NETWORK',
+    );
   }
 
   if (!response.ok) {
-    let error: { message?: string; code?: string } = { message: 'Error de conexión' };
+    let error: { message?: string; code?: string } = {
+      message: 'El servidor no respondió correctamente. Espera unos segundos y reintenta.',
+    };
     const contentType = response.headers.get('content-type') ?? '';
     if (contentType.includes('application/json')) {
       error = await response.json().catch(() => error);
-    } else if (response.status === 404) {
-      error = { message: 'No se pudo conectar con el servidor. Inténtalo en unos segundos.' };
+    } else if (response.status === 404 || response.status === 502 || response.status === 503) {
+      error = {
+        message: 'El servidor aún no está listo. Espera unos segundos y pulsa Reintentar.',
+      };
     }
     if (response.status === 401 && onUnauthorized && !isAuthPublicRequest(endpoint)) {
       onUnauthorized();

@@ -20,6 +20,8 @@ import { ProfileAvatar } from '../components/profile/ProfileAvatar';
 
 import { BirthdayProfileCard } from '../components/profile/BirthdayProfileCard';
 
+import { SecurityProfileCard } from '../components/profile/SecurityProfileCard';
+
 import { ProfileStyleCard } from '../components/profile/ProfileStyleCard';
 
 import { AddressManager } from '../components/address/AddressManager';
@@ -147,33 +149,28 @@ export function ProfilePage() {
 
 
   const handleSave = async () => {
-
     setError('');
-
-    try {
-
-      await updateProfile(form);
-
-      setEditing(false);
-
-      showToast('Datos actualizados');
-
-    } catch (e) {
-
-      setError(e instanceof Error ? e.message : 'Error');
-
+    const digits = form.phone.replace(/\D/g, '');
+    if (digits.length < 9) {
+      setError('Teléfono no válido (mínimo 9 dígitos)');
+      return;
     }
-
+    try {
+      await updateProfile({ ...form, phone: digits });
+      setEditing(false);
+      showToast('Datos actualizados');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
   };
 
-
-
   const handleSaveStyle = async (patch: Partial<User>, quiet = false) => {
-
-    await updateProfile(patch);
-
-    if (!quiet) showToast('Estilo actualizado ✨');
-
+    try {
+      await updateProfile(patch);
+      if (!quiet) showToast('Estilo actualizado ✨');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'No se pudo guardar el estilo');
+    }
   };
 
 
@@ -231,6 +228,8 @@ export function ProfilePage() {
           showToast('Cumpleaños guardado 🎂');
         }}
       />
+
+      <SecurityProfileCard email={user.email} passwordUserSet={user.passwordUserSet} />
 
       <LevelCard level={user.level} orderCount={user.orderCount} />
 

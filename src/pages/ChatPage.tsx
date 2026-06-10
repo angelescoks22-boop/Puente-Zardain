@@ -102,11 +102,17 @@ export function ChatPage() {
     }
     if (convId) {
       setLoading(true);
-      const data = await getConversation(convId);
-      setConversationId(data.conversation.id);
-      setMessages(data.messages);
-      setActiveConversation(data.conversation.id);
-      setLoading(false);
+      setError('');
+      try {
+        const data = await getConversation(convId);
+        setConversationId(data.conversation.id);
+        setMessages(data.messages);
+        setActiveConversation(data.conversation.id);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error al abrir la conversación');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
